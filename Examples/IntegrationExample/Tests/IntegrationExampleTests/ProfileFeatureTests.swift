@@ -16,24 +16,28 @@ struct ProfileFeatureTests {
     // MARK: - performLoad over MockAPIService
 
     @Test("A stubbed success reaches .content without touching the network pipeline")
-    func stubbedSuccessReachesContent() async {
+    func stubbedSuccessReachesContent() async throws {
         let mock = MockAPIService()
         mock.stub(GetProfileRequest.self, returning: GetProfileRequest.Response(name: "Hiram"))
 
         let viewModel = ProfileViewModel(service: mock)
-        await viewModel.load().value
+        // The same call `ProfileView` makes through `send(.load)` — `load()` itself is
+        // `private` (AF-05): no method reached through `@testable import` here either.
+        viewModel.handle(.load)
+        try await waitUntil { viewModel.phase == .content }
 
         #expect(viewModel.phase == .content)
         #expect(viewModel.profile == Profile(name: "Hiram"))
     }
 
     @Test("A stubbed failure lands on .error")
-    func stubbedFailureSurfacesError() async {
+    func stubbedFailureSurfacesError() async throws {
         let mock = MockAPIService()
         mock.stub(GetProfileRequest.self, throwing: .stub(code: .httpStatus, statusCode: 500))
 
         let viewModel = ProfileViewModel(service: mock, errorPresenter: AppErrorPresenter())
-        await viewModel.load().value
+        viewModel.handle(.load)
+        try await waitUntil { viewModel.hasError }
 
         #expect(viewModel.hasError)
         #expect(viewModel.profile == nil)
@@ -65,14 +69,14 @@ struct ProfileFeatureTests {
         )
 
         let viewModel = ProfileViewModel(service: service, errorPresenter: AppErrorPresenter())
-        let task = viewModel.load()
+        viewModel.handle(.load)
 
         // The retrier's `.retry` decision still sleeps through the injected clock (jittered
         // backoff, same as a plain `RetryPolicy` retry) — drive it by hand, no real wait
         // (CoreNetworking README, "ManualClock: retry sin esperar de verdad").
         await clock.waitUntilSleeping()
         clock.advance(by: .seconds(1))
-        await task.value
+        try await waitUntil { viewModel.phase == .content }
 
         #expect(viewModel.phase == .content)
         #expect(viewModel.profile == Profile(name: "Hiram"))
@@ -85,7 +89,7 @@ struct ProfileFeatureTests {
     // MARK: - performLoad over InMemoryTransport: transport failure → .error with the presenter's copy
 
     @Test("A transport failure lands on .error with AppErrorPresenter's offline copy")
-    func transportFailureSurfacesPresenterCopy() async {
+    func transportFailureSurfacesPresenterCopy() async throws {
         let transport = InMemoryTransport()
         let profileURL = URL(string: "https://unit.test/profile")!
         await transport.register(
@@ -103,7 +107,8 @@ struct ProfileFeatureTests {
         )
 
         let viewModel = ProfileViewModel(service: service, errorPresenter: AppErrorPresenter())
-        await viewModel.load().value
+        viewModel.handle(.load)
+        try await waitUntil { viewModel.hasError }
 
         guard case .error(let screenError) = viewModel.phase else {
             Issue.record("Expected .error, got \(viewModel.phase)")
