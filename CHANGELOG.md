@@ -168,6 +168,71 @@ PRD: [PRD-AF-01](PRD/PRD-AF-01.md).
 
 ### CoreNetworking
 
+<!-- PRD-CN-05 -->
+
+#### Breaking
+
+- `BaseRequest` se rediseña alrededor de `associatedtype Body: Encodable & Sendable = Never`
+  y `associatedtype Response: Decodable & Sendable = Empty`: un endpoint es un
+  tipo completo, sin `typealias Parameters = EmptyParameters` de relleno en
+  cada GET y sin ambigüedad en el call site sobre qué devuelve `execute`.
+  `parameters` se renombra a `body`; `timeoutInterval: TimeInterval` pasa a
+  `timeout: Duration`; `headers` y `queryItems` dejan de ser opcionales
+  (`[:]`/`[]` por defecto).
+- `HTTPMethod` cambia sus casos a minúscula (`.get`, `.post`, `.put`, `.patch`,
+  `.delete`, `.head`, `.options`) — `HTTPMethod.GET` ya no compila.
+- `APIServiceProtocol.execute`: la firma principal pasa de
+  `execute<Request, Response: Decodable>(request:) -> Response` (con
+  `Response` inferido en el call site) a `execute<R: BaseRequest>(_:) -> R.Response`,
+  con el tipo de respuesta fijado por el propio request. Se añade la
+  sobrecarga `execute<R, Value: Decodable & Sendable>(_:as:) -> Value` para el
+  caso puntual en que hace falta decodificar algo distinto de `R.Response`.
+  `upload`/`download` no cambian de firma.
+- `NetworkingConfiguration.environment` desaparece (era metadato sin lectores).
+
+#### Fixed
+
+- `execute` ya soporta respuestas vacías: `Response == Empty` decodifica a
+  `Empty()` sin mirar el body (204, HEAD, DELETE); un `Response` declarado que
+  no sea `Empty` con body vacío (p. ej. 204 inesperado, o 200 sin contenido)
+  lanza `.decoding` con `response.body.isEmpty` en vez de que `JSONDecoder`
+  falle con un mensaje opaco.
+- `Content-Type: application/json` ya solo se envía cuando el request declara
+  `body` (antes viajaba también en GET sin cuerpo); `Accept: application/json`
+  se envía siempre, sobrescribible por `headers`.
+- El body del request se codifica con `NetworkingConfiguration.makeEncoder`
+  (nuevo) en vez de un `JSONEncoder()` recién instanciado: con `makeDecoder`
+  usando `convertFromSnakeCase` ya se podía configurar el encoder simétrico.
+- `buildURLRequest` usa `URL.appending(path:)` en vez de
+  `appendingPathComponent`.
+
+#### Added
+
+- `Empty`: el `Decodable` que `BaseRequest.Response` usa por defecto y que
+  `execute` produce para 204/205/body vacío.
+- `NetworkingConfiguration.makeEncoder: @Sendable () -> JSONEncoder` (misma
+  razón de ser que `makeDecoder`: clase mutable, no ausencia de `Sendable`).
+- `NetworkingConfiguration.sessionConfiguration: @Sendable () -> URLSessionConfiguration`,
+  con `defaultSessionConfiguration()` (`waitsForConnectivity`, cookies
+  desactivadas, TLS 1.2 mínimo) como valor por defecto. `APIService.init` la
+  usa con el cambio mínimo — CN-03 reubicará esa construcción en
+  `URLSessionTransport`.
+- `RequestBuildingTests.swift`: cobertura de `Empty`/204, `Accept`/`Content-Type`,
+  `makeEncoder` y la fábrica de `sessionConfiguration` llegando a la
+  `URLSession` real.
+
+#### Removed
+
+- `BaseResponse.swift` (`BaseResponse`, `EmptyResponse`), `RequestParameters`,
+  `EmptyParameters`, `RequestValidationError` y `validated()`/`isValid`/
+  `debugValidated()`/`requestDescription` en `BaseRequest`: código sin uso en
+  Sources ni Tests.
+- README: el racional de `makeDecoder` ya no afirma que `JSONDecoder` no es
+  `Sendable` (lo ES en el SDK actual); la fábrica se documenta como
+  aislamiento por construcción frente a una instancia mutable compartida.
+
+PRD: [PRD-CN-05](PRD/PRD-CN-05.md).
+
 #### Changed
 
 - **Rompe API pública** — `SSLPinningConfiguration`: `pinnedHosts: Set<String>?`
