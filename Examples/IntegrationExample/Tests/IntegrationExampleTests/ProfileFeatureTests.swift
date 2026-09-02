@@ -23,7 +23,7 @@ struct ProfileFeatureTests {
         // The same call `ProfileView` makes through `send(.load)` — `load()` itself is
         // `private` (AF-05): no method reached through `@testable import` here either.
         viewModel.handle(.load)
-        try await waitUntil { viewModel.phase == .content }
+        await viewModel.inFlightLoad?.value
 
         #expect(viewModel.phase == .content)
         #expect(viewModel.profile == Profile(name: "Hiram"))
@@ -36,7 +36,7 @@ struct ProfileFeatureTests {
 
         let viewModel = ProfileViewModel(service: mock, errorPresenter: AppErrorPresenter())
         viewModel.handle(.load)
-        try await waitUntil { viewModel.hasError }
+        await viewModel.inFlightLoad?.value
 
         #expect(viewModel.hasError)
         #expect(viewModel.profile == nil)
@@ -75,7 +75,7 @@ struct ProfileFeatureTests {
         // (CoreNetworking README, "ManualClock: retry sin esperar de verdad").
         await clock.waitUntilSleeping()
         clock.advance(by: .seconds(1))
-        try await waitUntil { viewModel.phase == .content }
+        await viewModel.inFlightLoad?.value
 
         #expect(viewModel.phase == .content)
         #expect(viewModel.profile == Profile(name: "Hiram"))
@@ -107,7 +107,7 @@ struct ProfileFeatureTests {
 
         let viewModel = ProfileViewModel(service: service, errorPresenter: AppErrorPresenter())
         viewModel.handle(.load)
-        try await waitUntil { viewModel.hasError }
+        await viewModel.inFlightLoad?.value
 
         guard case .error(let screenError) = viewModel.phase else {
             Issue.record("Expected .error, got \(viewModel.phase)")

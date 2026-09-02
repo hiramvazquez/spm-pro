@@ -118,6 +118,37 @@ PRD: [PRD-AF-05](PRD/PRD-AF-05.md).
 
 PRD: [PRD-CN-07](PRD/PRD-CN-07.md).
 
+<!-- PRD-AF-06 -->
+#### Added
+
+- `BaseViewModel.inFlightLoad`/`inFlightActivity: Task<Void, Never>?` (`public
+  private(set)`, `@ObservationIgnored`): el `Task` en vuelo de `performLoad`/`load(_:)` y
+  `performActivity`/`activity(_:)` respectivamente, `nil` al terminar. Pensado para tests
+  deterministas cuando la llamada pasa por `handle(_:)` (que devuelve `Void`, AF-05):
+  `viewModel.handle(.load); await viewModel.inFlightLoad?.value` en vez de sondear
+  `phase`/`hasError` en un bucle con `Task.sleep`. Sustituye al helper `waitUntil` de los
+  ficheros de test (eliminado, sin más usos) en `AppFoundation/Tests` y en
+  `Examples/IntegrationExample/Tests` (DC-AF-2).
+- `BaseViewModel.init(errorPresenter:cancellationRecognizer:clock:)` gana `cancellationRecognizer:`
+  y `clock:` (ambos `nil` por defecto — no rompe llamadas existentes). Misma precedencia que
+  `errorPresenter`: instancia > `BaseViewModel.cancellationRecognizer`/`BaseViewModel.clock`
+  (los `static var`, que siguen existiendo para configuración a nivel de app). Los tests del
+  paquete ya no mutan esos estáticos salvo un único test `.serialized` que prueba
+  explícitamente el valor por defecto (DC-AF-3).
+- Documentación: `BindingBackedState`/`ObservingScreenState` (`ScreenContainer.swift`)
+  documentan por qué observan correctamente sin que `@Observable` (con el que ahora se
+  marcan, sin efecto: ninguna de sus propiedades es almacenada) haga ningún trabajo — la
+  reactividad viene de `Binding`/`@State` o de reenviar la lectura al `Observable` envuelto
+  (DC-AF-4). `ErasedView` documenta sus cuatro usos restantes, todos en la barra de
+  navegación `.custom`, opt-in (DC-AF-5). Sin cambios de API en ninguno de los dos casos.
+- `Examples/IntegrationExample` gana `ProfileView`/`ProfilePreview`
+  (`Sources/IntegrationExample/ProfileView.swift`): la vista SwiftUI que integra
+  `ScreenContainer` con `ProfileViewModel`, con una preview sobre `MockAPIService` y un
+  estilo de error instalado por `Environment` — la pieza que un integrador copia primero
+  (DC-AF-6).
+
+PRD: [PRD-AF-06](PRD/PRD-AF-06.md).
+
 ## [1.0.0] - 2026-09-02
 
 Primera versión estable. Cierra la auditoría técnica de 2026-09-01
