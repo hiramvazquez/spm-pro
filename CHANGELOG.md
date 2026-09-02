@@ -168,6 +168,55 @@ PRD: [PRD-AF-01](PRD/PRD-AF-01.md).
 
 ### CoreNetworking
 
+<!-- PRD-CN-03 -->
+
+#### Breaking
+
+- `APIService.init` ya no crea su propia `URLSession`: recibe un `transport:
+  any HTTPTransport` (el nuevo punto de inyección — `URLSessionTransport` en
+  producción, `InMemoryTransport` en tests). El `init(configuration:,
+  retryPolicy:, interceptors:, sslPinning:)` de siempre sigue existiendo como
+  `convenience init` (azúcar sobre `URLSessionTransport`), así que la mayoría
+  de consumidores no cambia una sola línea.
+- `RetryPolicy.initialDelay` / `.maxDelay` pasan de `TimeInterval` a
+  `Duration` (`.milliseconds(500)` / `.seconds(16)` por defecto);
+  `baseDelay(for:)` / `jitteredDelay(for:)` devuelven `Duration`.
+  `APIService` ya no reintenta con `Task.sleep` en el reloj real: duerme a
+  través de un `any Clock<Duration>` inyectable (`init(clock:)`, por defecto
+  `ContinuousClock()`).
+- `CoreNetworkingTestSupport`: `MockAPIService.result: Any?` desaparece —
+  `stub(_:returning:)` / `stub(_:throwing:)` registran el stub por TIPO de
+  request, así que un `Response` que no matchea ya no cae silenciosamente en
+  `.invalidResponse`. `MockNetworkExchange.response:` (single) sigue
+  existiendo; `responses: [MockResponse]` es nuevo (secuencia consumida en
+  orden, la última se repite).
+
+#### Added
+
+- `HTTPTransport` (`Transport/HTTPTransport.swift`): el protocolo `send(_:
+  progress:) async throws -> (Data, HTTPURLResponse)` que reemplaza al
+  registro estático de `URLProtocol` como punto de inyección bajo
+  `APIService`. `URLSessionTransport` (`Transport/URLSessionTransport.swift`)
+  es la implementación de producción: posee la `URLSession` y su `deinit`
+  (movidos desde `APIService`), con `PinningSessionDelegate` como delegate de
+  sesión — igual que antes, solo que ahora vive en el transporte, no en el
+  servicio.
+- `InMemoryTransport` (`CoreNetworkingTestSupport`): `HTTPTransport` en
+  memoria, sin `URLSession` ni registro global — un `actor` por test, sin la
+  disciplina de "un host por test" que exige `MockURLProtocol` bajo Swift
+  Testing en paralelo. Soporta secuencias de respuestas (500 → 500 → 200),
+  el hueco que hacía imposible probar "reintento que acaba bien" (CN-21).
+- `ManualClock` (`CoreNetworkingTestSupport`): `Clock<Duration>` que solo
+  avanza cuando el test llama a `advance(by:)`; `waitUntilSleeping()`
+  suspende (sin sondear, sin dormir) hasta que el pipeline registra el
+  siguiente `sleep`. `RetryBehaviorTests` ya no mide tiempo de pared ni
+  contiene un solo `Task.sleep` real (CN-11).
+- `MockURLProtocol` / `MockAPIHelper.setupMockSequence(...)`: soporte de
+  secuencias también en el mock de integración, para los tests que
+  deliberadamente siguen atravesando el URL loading system real.
+
+PRD: [PRD-CN-03](PRD/PRD-CN-03.md).
+
 #### Changed
 
 - **Rompe API pública** — `SSLPinningConfiguration`: `pinnedHosts: Set<String>?`
