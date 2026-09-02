@@ -10,6 +10,103 @@ X-02 cierra la versión.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-02
+
+Primera versión estable. Cierra la auditoría técnica de 2026-09-01
+(`AUDITORIA-2026-09-01.md`, 43 hallazgos, `PRD/CIERRE.md`) dentro del alcance acordado:
+seguridad avanzada fuera de alcance, SSL pinning básico y correcto dentro.
+
+### Roturas de API
+
+Lista agregada de toda la API pública eliminada o renombrada desde `0.1.4`, por paquete
+(el detalle de cada cambio, con su racional, está en la entrada del PRD correspondiente
+más abajo).
+
+#### AppFoundation
+
+- `performLoad`/`performActivity` ya no aceptan `() async throws -> Void`; `work` es
+  `@MainActor (Self) async throws -> Void` — migrar `performLoad { self.foo() }` a
+  `performLoad { vm in vm.foo() }` (AF-01/PRD-AF-01).
+- `WrappedError.init` gana `now: () -> Date` y usa `#fileID` en vez de `#file` como
+  default de `file` (PRD-AF-01).
+- `Container` pasa a `@MainActor` — se elimina el `NSLock` y el `@unchecked Sendable`
+  (AF-09/PRD-AF-02).
+- `register(_:lifecycle:factory:)` recibe ahora el `Container` en la fábrica.
+- `Lifecycle.scoped(key:)`, `Container.createScope`/`destroyScope` desaparecen — usar
+  `Container(parent:)` (AF-10/PRD-AF-02).
+- `ContainerConcurrencyTests.swift` desaparece (sin objeto que probar en un `Container`
+  `@MainActor`).
+- `Debouncer`/`Throttler` pasan de `actor` a `@MainActor final class`, dejan de ser
+  genéricos sobre `Clock` (`Debouncer<C>` → `Debouncer`) y `debounce(_:)` pasa a
+  síncrono (AF-19/PRD-AF-03).
+- `Debouncer.init(milliseconds:)` se elimina — usar `.milliseconds(n)`.
+- `AppEnvironment` pasa de `struct` a `enum` namespace (AF-20/PRD-AF-03).
+- `AppEnvironment.isTestOrPreview` se elimina (heurística de test en producción,
+  AF-20/PRD-AF-03).
+- `AppEnvironment.debugInfo` / `AppEnvironment.printDebugInfo()` se eliminan.
+- `ScreenContainer`: el parámetro `navigation:` desaparece en favor de
+  `chrome: ScreenChrome` (`.native` por defecto, `.custom(...)` opt-in;
+  AF-12/AF-13/PRD-AF-04).
+- `.loadingView { }`, `.errorView { }`, `.emptyView { }`, `.bannerView { }` de
+  `ScreenContainer` se eliminan en favor de `LoadingViewStyle`/`ErrorViewStyle`/
+  `EmptyViewStyle`/`BannerViewStyle` propagados por `Environment` (AF-15/PRD-AF-04).
+- `.alertView(builder:)` se elimina.
+- `NavigationBarItemContent.view`, `NavigationBarTitle.custom` y las propiedades
+  `accessoryView`/`customContent` de `NavigationBarConfiguration` dejan de exponer
+  `AnyView` en su firma pública.
+- `NavigationBarTitle.largeText` se elimina.
+- `BannerState.duration` cambia de `BannerState.Duration` (enum propio) a
+  `Swift.Duration?` (AF-18/PRD-AF-04).
+- `Coordinator.navigationHistory` pasa a `internal` (antes `public` solo en `DEBUG`,
+  AF-14/PRD-AF-04).
+
+#### CoreNetworking
+
+- `APIError` pasa de `enum` cerrado a `struct` extensible con `Code`, `RequestSummary`,
+  `ResponseSummary` y `underlying`; deja de ser `Equatable` (CN-02/PRD-CN-01).
+- `TransportError` y `APIMessageError` desaparecen — `APIError.category` cubre la
+  clasificación de alto nivel (CN-03/PRD-CN-01).
+- `RetryPolicy.shouldRetry` pasa a `@Sendable (APIError, Int) -> Bool`; `RetryPolicy`
+  deja de ser `Equatable` (PRD-CN-01).
+- `RequestInterceptor.didFail(_:error:)` tipa `error: APIError` en vez de `Error`
+  (PRD-CN-01) — sustituido más tarde por la firma de CN-06, ver abajo.
+- `SSLPinningConfiguration`: `pinnedHosts: Set<String>?` → `hosts: Hosts` (`.all`/
+  `.only`); `validateCertificateChain: Bool` → `chainValidation: ChainValidation`
+  (`.system`/`.unsafeSkipForDevelopment`); el constructor exige ≥ 2 pines
+  (CN-19/PRD-CN-02).
+- `APIService.init` ya no crea su propia `URLSession`: el designado recibe
+  `transport: any HTTPTransport` (el `convenience init(configuration:...)` de siempre
+  se conserva) (CN-21/PRD-CN-03).
+- `RetryPolicy.initialDelay`/`.maxDelay` pasan de `TimeInterval` a `Duration`
+  (CN-11/PRD-CN-03).
+- `CoreNetworkingTestSupport.MockAPIService.result: Any?` desaparece —
+  `stub(_:returning:)`/`stub(_:throwing:)` por tipo de request (CN-22/PRD-CN-03).
+- `BaseRequest` se rediseña alrededor de `associatedtype Body: Encodable & Sendable =
+  Never` / `associatedtype Response: Decodable & Sendable = Empty`; `parameters` se
+  renombra a `body`; `timeoutInterval: TimeInterval` pasa a `timeout: Duration`;
+  `headers`/`queryItems` dejan de ser opcionales (CN-15/CN-16/PRD-CN-05).
+- `HTTPMethod` cambia sus casos a minúscula (`.get`, `.post`, …) — `HTTPMethod.GET` ya
+  no compila (CN-18/PRD-CN-05).
+- `APIServiceProtocol.execute`: `execute<Request, Response: Decodable>(request:) ->
+  Response` pasa a `execute<R: BaseRequest>(_:) -> R.Response`, con la sobrecarga
+  `execute<R, Value>(_:as:)` añadida (CN-16/PRD-CN-05).
+- `NetworkingConfiguration.environment` desaparece (CN-17/PRD-CN-05).
+- `BaseResponse.swift` (`BaseResponse`, `EmptyResponse`), `RequestParameters`,
+  `EmptyParameters`, `RequestValidationError`, `validated()`/`isValid`/
+  `debugValidated()`/`requestDescription` se eliminan (CN-17/PRD-CN-05).
+- `SessionDelegates.swift` (`PinningSessionDelegate`, `UploadProgressDelegate`)
+  desaparece — el pinning decide por tarea con `TaskDelegate`
+  (CN-01/CN-07/PRD-CN-04).
+- `APIServiceProtocol.download(request:progress:) -> Data` se sustituye por
+  `data(for:progress:) -> Data` (en memoria) y `download(_:to:progress:)` (a disco)
+  (CN-07/PRD-CN-04).
+- `RequestInterceptor` se reescribe alrededor de `RequestContext`: `willSend(_:context:)`
+  pasa a `async throws(APIError)`; `didReceive` recibe `HTTPURLResponse` (no
+  `URLResponse`) y `context`; `didFail` pasa a `didFail(_ error: APIError, context:)`
+  (ya no recibe `request:` por separado) (CN-06/PRD-CN-06).
+- `APIService.init` (designado y `convenience`) gana `retriers: [any RequestRetrier] =
+  []` (CN-05/PRD-CN-06).
+
 ### AppFoundation
 
 <!-- PRD-AF-02 -->
