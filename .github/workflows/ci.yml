@@ -23,9 +23,13 @@
 #   `swift package archlint` pasa limpio sobre los cuatro ejemplos (son la referencia).
 # - `corenetworking-example`: `CoreNetworking/Examples/APIClientApp`, el consumidor mínimo
 #   sin AppFoundation — la prueba de que CoreNetworking se adopta solo.
-# - `docs`: `xcodebuild docbuild` para los dos schemes (`AppFoundation`,
-#   `CoreNetworking-Package`) — falla si DocC no puede construir el catálogo
-#   (`Documentation.docc/`), incluidos enlaces `<doc:...>`/`@Snippet` rotos.
+# - `docs`: primero `Scripts/check-doc-snippets.sh` (los bloques ```swift en línea de
+#   `Documentation.docc/`, marcados `<!-- snippet: <name> -->`, deben coincidir con
+#   `Snippets/` — PRD-X-04: `@Snippet(path:)` no se resuelve en el primer `xcodebuild
+#   docbuild` sobre DerivedData limpio), luego `xcodebuild docbuild` para los dos schemes
+#   (`AppFoundation`, `CoreNetworking-Package`) en iOS Simulator y macOS — falla si DocC no
+#   puede construir el catálogo (`Documentation.docc/`) o si hay avisos (enlaces
+#   `<doc:...>` rotos, parámetros sin documentar).
 # - `snippets`: `swift build` en cada paquete compila `Snippets/` junto con Sources/Tests
 #   (SwiftPM los descubre como productos ejecutables automáticamente) — job explícito y
 #   rápido para que un snippet roto falle solo, sin esperar a la matriz completa de `test`.
@@ -270,11 +274,27 @@ jobs:
         with:
           xcode-version: ${{ env.XCODE_VERSION }}
 
-      - name: xcodebuild docbuild
+      - name: Scripts/check-doc-snippets.sh
+        working-directory: ${{ github.workspace }}
+        run: Scripts/check-doc-snippets.sh
+
+      - name: xcodebuild docbuild (DerivedData limpio, 0 warnings)
         run: |
-          xcodebuild docbuild \
-            -scheme "${{ matrix.scheme }}" \
-            -destination 'generic/platform=iOS Simulator'
+          set -o pipefail
+          for destination in 'generic/platform=iOS Simulator' 'platform=macOS'; do
+            echo "::group::docbuild -scheme ${{ matrix.scheme }} -destination $destination"
+            log="$(mktemp)"
+            xcodebuild docbuild \
+              -scheme "${{ matrix.scheme }}" \
+              -destination "$destination" \
+              -derivedDataPath "$(mktemp -d)" \
+              | tee "$log"
+            echo "::endgroup::"
+            if grep -q "warning:" "$log"; then
+              echo "::error::docbuild (-destination $destination) produjo warnings"
+              exit 1
+            fi
+          done
 
   snippets:
     name: Snippets/ (${{ matrix.package }})
