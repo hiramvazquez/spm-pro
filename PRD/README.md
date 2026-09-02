@@ -38,7 +38,9 @@ Objetivo global: dejar AppFoundation y CoreNetworking en **10/10** dentro del al
 | 4 | X-02 | todo lo anterior mergeado |
 | 5 | AF-05 | X-02 mergeado |
 | 6 | CN-07, AF-06 | AF-05 mergeado (paquetes distintos, sin solape) |
-| 7 | X-03 | CN-07 y AF-06 mergeados |
+| 8 | AF-07 | oleada 6 mergeada |
+| 9 | AF-08 | AF-07 mergeado |
+| 10 | X-03 (v2) | AF-07 y AF-08 mergeados |
 
 Conflictos esperados y cómo evitarlos:
 - `README.md` de cada paquete: cada PRD edita **solo su sección**; X-02 hace la pasada final de coherencia.
@@ -76,4 +78,6 @@ oleada parte de `main` actualizado.
 | [AF-05](PRD-AF-05.md) | Contrato pantalla ↔ cáscara: `ScreenState`, `ActionHandling`, `ActionSender` | decisión del propietario | AppFoundation |
 | [CN-07](PRD-CN-07.md) | Pulido tras el doble check | DC-CN-1…7 | CoreNetworking |
 | [AF-06](PRD-AF-06.md) | Pulido tras el doble check | DC-AF-2…5 | AppFoundation |
-| [X-03](PRD-X-03.md) | Documentación de integración y cierre 1.0.0 | DC-CN-8, DC-AF-6/7 | ambos |
+| [AF-07](PRD-AF-07.md) | Kit de arquitectura: `Logic`, `LogicViewModel`, `EndpointService`, test support, 4 ejemplos | `ARQUITECTURA-KIT-2026-09-02.md` | ambos |
+| [AF-08](PRD-AF-08.md) | Plugins: generador `generate-feature`, linter `ArchitectureLint`, `archinit` | ídem | AppFoundation |
+| [X-03](PRD-X-03.md) | (v2) Documentación dentro de cada SPM (DocC + Snippets) y cierre 1.0.0 | DC-CN-8, DC-AF-6/7 | ambos |
