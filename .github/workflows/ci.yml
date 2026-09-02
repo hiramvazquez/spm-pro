@@ -69,8 +69,8 @@ jobs:
       - name: swift format lint --strict
         run: |
           swift format lint --strict --recursive \
-            AppFoundation/Sources AppFoundation/Tests AppFoundation/Examples AppFoundation/Plugins \
-            CoreNetworking/Sources CoreNetworking/Tests CoreNetworking/Examples
+            AppFoundation/Sources AppFoundation/Tests AppFoundation/Examples AppFoundation/Plugins AppFoundation/Snippets \
+            CoreNetworking/Sources CoreNetworking/Tests CoreNetworking/Examples CoreNetworking/Snippets
 
   test:
     name: ${{ matrix.package }}
