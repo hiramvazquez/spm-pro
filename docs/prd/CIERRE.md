@@ -448,3 +448,7 @@ Notas:
       arquitectura, para confirmar que `.archlint.yml`/`Features/`/`AGENTS.md`/
       `.claude/skills/feature.md` se generan correctamente fuera de este monorepo.
 - [ ] Ninguna rama `prd/*` sin mergear queda huérfana (`git branch --no-merged main`).
+
+## Doble check final (2026-09-02, tras X-04)
+
+Informe completo y puntuación: `docs/AUDITORIA-2026-09-02-final.md`. Estado de `main` (`b7e4e21`): AppFoundation 261 tests, CoreNetworking 138, ejemplos 50, lint estricto 0, iOS OK, `docbuild` limpio en DerivedData nueva (iOS y macOS), 29 bloques de DocC sincronizados con `Snippets/`, ninguna rama `prd/*` sin mergear. Correcciones aplicadas en este doble check: generador en paquete recién creado (`f13faee`), instalación por repo de cada paquete y `LICENSE` dentro del SPM (`b89ffa5`), código generado sin referencias al monorepo (`7ab883d`), parámetros documentados y lint residual (`7fb7c5a`), X-04. Puntuación final: CoreNetworking 10/10; AppFoundation 10/10 condicionado a la verificación manual AF-12/AF-13; kit + plugins 9/10.
