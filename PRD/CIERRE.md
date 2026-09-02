@@ -210,14 +210,12 @@ trampa cargando el `.lproj` por *path* en vez de confiar en `locale:`), no un bu
 producción nunca pide una localización distinta de la del dispositivo. Corregido con el
 mismo mecanismo que ya usa AppFoundation (commit `55a3254`).
 
-**2. `RetrierTests.concurrentRequestsDedupRefresh()` es intermitente bajo `xcodebuild
-test` en ejecución de la suite completa — NO corregido, fuera del alcance de X-02.**
-Falló una vez en una corrida completa de `xcodebuild test -scheme CoreNetworking-Package`
-(`refreshCount.value == 1` con más de un refresh disparado) y pasó de forma consistente en
-3 corridas aisladas del mismo test y en una corrida completa posterior. Es un test de
-PRD-CN-06 (`RetrierTests.swift`, `TokenRefresher` — ninguno de los dos ficheros está en la
-lista de PRD-X-02) que parece sensible a la presión de scheduler cuando corre junto a otras
-24 suites bajo `xcodebuild`; no reproducido bajo `swift test --parallel` en 3 corridas.
-Queda documentado para el propietario: si vuelve a aparecer, revisar la sincronización de
-`TokenRefresher.refreshToken()` (`CoreNetworking/Sources/CoreNetworking/Auth/
-TokenRefresher.swift`) bajo carga real, no solo bajo `Task` cooperativo de un solo proceso.
+**2. `RetrierTests.concurrentRequestsDedupRefresh()` era intermitente bajo `xcodebuild
+test` — CORREGIDO en el doble check posterior a X-02.** Causa: el test forzaba el solape de
+los diez `401` con un `Task.sleep(20 ms)` dentro del refresh; bajo carga, alguna request
+recibía su `401` después de que el refresh terminara y disparaba (correctamente) un segundo
+refresh. Ahora `TokenRefresher` expone `joinedInFlightCount` y los dos tests de
+deduplicación (`RetrierTests`, `TokenRefresherTests`) esperan a que las otras nueve
+llamadas se hayan enganchado al refresh en vuelo antes de dejarlo terminar: el solape es
+un hecho observado, no una carrera contra el scheduler. Sin `sleep`; 8/8 corridas
+consecutivas verdes en ~4 ms.
