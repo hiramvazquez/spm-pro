@@ -12,7 +12,6 @@ import Testing
 /// retriers), never importing anything internal from either package.
 @Suite("IntegrationExample — ProfileViewModel")
 struct ProfileFeatureTests {
-
     // MARK: - performLoad over MockAPIService
 
     @Test("A stubbed success reaches .content without touching the network pipeline")
