@@ -1,0 +1,143 @@
+# CI de spm-pro: dos paquetes, un workflow.
+#
+# - `lint`: swift-format del toolchain, configuración en `.swift-format` (raíz). Hasta
+#   que X-02 aplique el reformateo masivo el job NO bloquea (`continue-on-error`) y
+#   corre sin `--strict`; X-02 quita ambas cosas en el mismo commit que reformatea.
+# - `test`: matriz por paquete. Tres capas, de más barata a más cara:
+#     1. `SWIFT_STRICT_WARNINGS=1 swift build --build-tests` — nivel 0 de warnings
+#        (el gate vive en cada Package.swift; sin la variable el consumidor no lo hereda).
+#     2. `swift test --parallel` en macOS (host).
+#     3. `xcodebuild test` en iOS Simulator, con el simulador que exista en el runner
+#        (detectado en un paso previo; los nombres cambian con cada Xcode).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Swift 6.2 (tools) exige Xcode 26.x; `latest-stable` lo garantiza en la imagen macos-15.
+  XCODE_VERSION: latest-stable
+
+jobs:
+  lint:
+    name: swift format lint
+    runs-on: macos-15
+    # PRD-X-02 (Tareas, punto 4): tras `swift format --in-place` pasa a `--strict` y se
+    # elimina este `continue-on-error`.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Seleccionar Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Versiones
+        run: |
+          xcodebuild -version
+          swift --version
+          swift format --version
+
+      - name: swift format lint
+        run: |
+          swift format lint --recursive \
+            AppFoundation/Sources AppFoundation/Tests \
+            CoreNetworking/Sources CoreNetworking/Tests
+
+  test:
+    name: ${{ matrix.package }}
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: AppFoundation
+            scheme: AppFoundation
+          - package: CoreNetworking
+            # Con dos productos SPM no genera un scheme `CoreNetworking` con acción de
+            # test: el agregado es `CoreNetworking-Package` (ver README del paquete).
+            scheme: CoreNetworking-Package
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Seleccionar Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Versiones
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Detectar simulador iOS disponible
+        id: sim
+        run: |
+          # iPhone disponible del runtime iOS más reciente, prefiriendo el modelo base
+          # ("iPhone 17" antes que "iPhone 17 Pro Max"). Se exporta el nombre, no el
+          # UDID, para que el log de xcodebuild sea legible.
+          name=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          runtimes = sorted(rt for rt in devices if "iOS" in rt)
+          for rt in reversed(runtimes):
+              iphones = sorted((d["name"] for d in devices[rt] if d["name"].startswith("iPhone")), key=len)
+              if iphones:
+                  print(iphones[0]); break
+          ')
+          if [ -z "$name" ]; then
+            echo "::error::No hay ningún iPhone disponible en el runner"
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "Simulador: $name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - name: Cache de .build
+        uses: actions/cache@v4
+        with:
+          path: ${{ matrix.package }}/.build
+          key: spm-${{ matrix.package }}-${{ runner.os }}-${{ hashFiles(format('{0}/Package.swift', matrix.package)) }}
+          restore-keys: |
+            spm-${{ matrix.package }}-${{ runner.os }}-
+
+      - name: Build estricto (0 warnings)
+        run: SWIFT_STRICT_WARNINGS=1 swift build --build-tests
+
+      - name: swift test (macOS)
+        run: swift test --parallel
+
+      - name: xcodebuild test (iOS Simulator)
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -scheme "${{ matrix.scheme }}" \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -resultBundlePath "TestResults-${{ matrix.package }}.xcresult" \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee "xcodebuild-${{ matrix.package }}.log"
+
+      - name: Subir resultados si falla
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcresult-${{ matrix.package }}
+          path: |
+            ${{ matrix.package }}/TestResults-${{ matrix.package }}.xcresult
+            ${{ matrix.package }}/xcodebuild-${{ matrix.package }}.log
+          if-no-files-found: ignore
