@@ -1,3 +1,21 @@
+# Cierre 1.0.0 — spm-pro
+
+Verificación cruzada de la auditoría (oleadas 1-3, PRD-X-02), el doble check (oleadas 4-6,
+DC-CN-1…8/DC-AF-1…7), el kit de arquitectura (AF-07/AF-08) y el cierre de documentación
+(X-03). Un único fichero: es el punto de referencia para decidir si `1.0.0` está lista
+para el tag.
+
+## Índice
+
+- [PRD-X-02 — verificación cruzada de la auditoría](#prd-x-02--cierre-10-verificación-cruzada-de-la-auditoría) (43 hallazgos `CN-01`…`AF-21`)
+- [Doble check — DC-CN-1…8, DC-AF-1…7](#doble-check--dc-cn-18-dc-af-17)
+- [AF-07 / AF-08 — kit de arquitectura y plugins](#af-07--af-08--kit-de-arquitectura-y-plugins)
+- [X-03 — documentación dentro de cada SPM y cierre 1.0.0](#x-03--documentación-dentro-de-cada-spm-y-cierre-100)
+- [Procedimiento de tag en las ramas `subtree split`](#procedimiento-de-tag-en-las-ramas-subtree-split)
+- [Checklist final del propietario](#checklist-final-del-propietario)
+
+---
+
 # PRD-X-02 — Cierre 1.0: verificación cruzada de la auditoría
 
 Verificación ejecutada el 2026-09-02 sobre `main` con las oleadas 1-3 ya mergeadas (commit
@@ -10,7 +28,7 @@ hallazgos» de `AUDITORIA-2026-09-01.md` es **43**: `CN-01`…`CN-22` (22 IDs) +
 `AF-01`…`AF-21` (21 IDs).
 
 ```bash
-grep -oE '^\| (CN|AF)-[0-9]+' AUDITORIA-2026-09-01.md | sort -u | wc -l
+grep -oE '^\| (CN|AF)-[0-9]+' ../AUDITORIA-2026-09-01.md | sort -u | wc -l
 #   43
 ```
 
@@ -150,7 +168,15 @@ como job independiente en `.github/workflows/ci.yml`.
 
 ---
 
-## Release 1.0.0 — checklist para el propietario
+## Release 1.0.0 — checklist para el propietario (histórico, PRD-X-02)
+
+> Este procedimiento etiquetaba `main` directamente. Ya no es el correcto: cada paquete se
+> publica por `git subtree split`, y SwiftPM exige `Package.swift` en la raíz del repo
+> consumido — el tag va en la rama split (`cn-only`/`af-only`), nunca en `main`. Ver
+> [Procedimiento de tag en las ramas `subtree split`](#procedimiento-de-tag-en-las-ramas-subtree-split)
+> y el [Checklist final del propietario](#checklist-final-del-propietario) al final de este
+> fichero para el procedimiento vigente. Se conserva esta sección tal cual la dejó X-02, sin
+> reescribirla, porque documenta el estado de esa rama en su momento.
 
 `CHANGELOG.md` ya cierra `## [1.0.0] - 2026-09-02` en esta rama (con la sección «Roturas de
 API» agregada por paquete) y deja un `## [Unreleased]` vacío arriba. **No se ha creado el
@@ -220,3 +246,154 @@ deduplicación (`RetrierTests`, `TokenRefresherTests`) esperan a que las otras n
 llamadas se hayan enganchado al refresh en vuelo antes de dejarlo terminar: el solape es
 un hecho observado, no una carrera contra el scheduler. Sin `sleep`; 8/8 corridas
 consecutivas verdes en ~4 ms.
+
+---
+
+# Doble check — DC-CN-1…8, DC-AF-1…7
+
+Verificado sobre `main` en la rama `prd/X-03`, con PRD-CN-07 y PRD-AF-06 ya mergeados.
+
+## CoreNetworking
+
+| ID | Estado | Evidencia |
+|----|--------|-----------|
+| DC-CN-1 | Resuelto | `grep -n "func upload" CoreNetworking/Sources/CoreNetworking/APIServiceProtocol.swift` → `upload<Request: BaseRequest>(_:data:progress:) -> Request.Response` y la sobrecarga `upload(_:data:as:progress:) -> Value`, misma forma que `execute`. `upload(request:data:progress:) -> Response` no existe. |
+| DC-CN-2 | Resuelto | `grep -n "func download" CoreNetworking/Sources/CoreNetworking/APIService.swift` → `download<Request: BaseRequest>(_:to:progress:)` pasa por `performWithRetry`; cada intento reescribe `destination` atómicamente. |
+| DC-CN-3 | Resuelto | `APIError.swift` — `Category` incluye `.unreachable` (`networkConnectionLost`/`cannotConnectToHost`/`dnsLookupFailed`/`cannotFindHost`), distinto de `.offline`. |
+| DC-CN-4 | Resuelto | `MockAPIService.swift` — un request sin stub lanza `APIError(code: .unstubbed, underlying: UnstubbedRequest(...))`, no `.invalidResponse`. `APIError.Code.unstubbed` vive en `CoreNetworkingTestSupport`. |
+| DC-CN-5 | Resuelto | `grep -rn "CN-0[0-9]\|PRD-CN" CoreNetworking/Sources/CoreNetworking/*.swift` → vacío. Los comentarios que citaban PRDs como futuro están reescritos en presente. |
+| DC-CN-6 | Resuelto | `NetworkingConfiguration.swift:47` — `protocolClasses` con `@available(*, deprecated, message: "Configura protocolClasses en sessionConfiguration")`; el almacenamiento real (`legacyProtocolClasses`) sigue funcionando para compatibilidad. |
+| DC-CN-7 | Resuelto | `BaseRequest.swift:120` — `public struct Empty: Decodable, Sendable, Equatable`. `RequestSummary.init(URLRequest)` documenta el fallback a `.get` para un método fuera del `HTTPMethod` cerrado. |
+| DC-CN-8 | Resuelto | `grep -c "antes de CN\|antes de PRD\|CN-0[0-9]" CoreNetworking/README.md` → `0`. El README se reescribió por completo en X-03: corto, sin historia, con enlace a `Documentation.docc/` para la referencia completa. |
+
+## AppFoundation
+
+| ID | Estado | Evidencia |
+|----|--------|-----------|
+| DC-AF-1 | Resuelto (ya en `main` antes de esta rama) | `LoadableViewModel.swift:116,129` — `setLoading(style)`/`startActivity(style)` se llaman ANTES de ejecutar `work`, en las variantes estructuradas `load`/`activity`. |
+| DC-AF-2 | Resuelto | `BaseViewModel.swift:79,83` — `inFlightLoad`/`inFlightActivity: Task<Void, Never>?` (`public private(set)`, `@ObservationIgnored`). `Examples/*/Tests` y `AppFoundation/Tests` usan `await viewModel.inFlightLoad?.value` en vez de sondear `phase` en un bucle. |
+| DC-AF-3 | Resuelto | `BaseViewModel.swift:100,103` — `instanceCancellationRecognizer`/`instanceClock` (`@ObservationIgnored private let`), inyectados por `init`, con precedencia sobre `Self.cancellationRecognizer`/`Self.clock` (`:406,412`). Los tests del paquete solo mutan el estático en un único test `.serialized` que prueba explícitamente el valor por defecto. |
+| DC-AF-4 | Resuelto | `ScreenContainer.swift:432-447` — el comentario «Why this observes correctly without `@Observable` doing any work (DC-AF-4)» documenta por qué `BindingBackedState`/`ObservingScreenState` observan bien sin que `@Observable` instrumente nada (ninguna propiedad es almacenada). |
+| DC-AF-5 | Resuelto (documentado, sin cambio de API) | `grep -rn "ErasedView(" AppFoundation/Sources/AppFoundation` → 7 apariciones, todas dentro de `NavigationBarItem.swift`/`*ViewStyle.swift`, piezas opt-in de la barra `.custom` — con `.native` por defecto (el caso común) no entran en juego. |
+| DC-AF-6 | Resuelto | `AppFoundation/Examples/LoginApp/Sources/LoginApp/Features/Login/LoginView.swift` — la vista SwiftUI que integra `ScreenContainer` con `LoginViewModel`, con preview sobre `MockAPIService`; reemplaza al `Examples/IntegrationExample` original (sin vista) señalado por el hallazgo. |
+| DC-AF-7 | Resuelto | `wc -l AppFoundation/README.md` → `93` (antes, 996). Guía de integración lineal y referencia por pieza con ejemplo completo movidas a `Sources/AppFoundation/Documentation.docc/` (X-03); el README queda corto, sin racional de auditoría ni notas de diseño. |
+
+---
+
+# AF-07 / AF-08 — kit de arquitectura y plugins
+
+| ID | Estado | Evidencia |
+|----|--------|-----------|
+| AF-07 | Resuelto | `Logic` (`Architecture/Logic/Logic.swift`), `LogicViewModel<L>` (`Architecture/ViewModels/LogicViewModel.swift`), `DomainError` (`Architecture/AppError/DomainError.swift`), producto `AppFoundationTestSupport` (`InMemoryStore`/`ManualClock`/`SpyRecorder`), `EndpointService` en CoreNetworking. Cuatro ejemplos en `AppFoundation/Examples/` (`CounterApp`, `NotesApp`, `LoginApp`, `CatalogApp`), uno por variante, cada uno con tests por capa (VM/Logic/Service o Store) y mocks/spies. `AGENTS.md` en ambos paquetes. |
+| AF-08 | Resuelto | `Sources/archlint` (analizador léxico, reglas R1-R11, `Tests/ArchLintTests` con fixtures `Good`/`Bad` por regla); plugins `ArchitectureLint` (build-tool), `ArchLintCommand`/`GenerateFeature`/`ArchInit` (command) en `AppFoundation/Package.swift`; plantillas en `AppFoundation/Templates/*.txt`; `Scripts/verify-generator.sh` (verificación de integración real en un paquete temporal, usado por el job `generator` de CI). |
+
+
+---
+
+# X-03 — documentación dentro de cada SPM y cierre 1.0.0
+
+Ejecutado en la rama `prd/X-03`, sobre `main` con AF-07 y AF-08 ya mergeados.
+
+## Entregables
+
+| Entregable | Estado | Evidencia |
+|---|---|---|
+| `Documentation.docc` en cada target principal | Resuelto | `AppFoundation/Sources/AppFoundation/Documentation.docc/` (landing + 13 artículos: `GettingStarted`, `ScreenStateAndViewModels`, `ErrorHandling`, `Navigation`, `DependencyInjection`, `UserInterface`, `Utilities`, `Architecture`, `Recipes`, `Testing`, `Generator`, `Lint`, `FAQ`). `CoreNetworking/Sources/CoreNetworking/Documentation.docc/` (landing + 12 artículos: `GettingStarted`, `Requests`, `ErrorHandling`, `Retry`, `Pinning`, `Interceptors`, `Authentication`, `Transport`, `Architecture`, `Recipes`, `Testing`, `FAQ`). |
+| `xcodebuild docbuild` sin warnings de enlaces rotos | Resuelto | `xcodebuild docbuild -scheme AppFoundation -destination 'generic/platform=iOS Simulator'` → `BUILD DOCUMENTATION SUCCEEDED`; diagnóstico del compilador (`AppFoundation-diagnostics.json`): 4 warnings, los 4 preexistentes ("Parameter missing documentation" en `WrappedError.swift`), ninguno de enlace roto ni de topic de DocC. `xcodebuild docbuild -scheme CoreNetworking-Package -destination 'generic/platform=iOS Simulator'` → `BUILD DOCUMENTATION SUCCEEDED`; `CoreNetworking-diagnostics.json`: 6 warnings, los 6 preexistentes ("Parameter missing documentation" en `HTTPTransport.swift`/`APIService.swift`), cero relacionados con `Documentation.docc` o `@Snippet`. |
+| `Snippets/` compilados por SwiftPM | Resuelto | `AppFoundation/Snippets/` (14 ficheros), `CoreNetworking/Snippets/` (10 ficheros). `SWIFT_STRICT_WARNINGS=1 swift build --build-tests` en ambos paquetes compila todos los snippets junto con Sources/Tests — 0 warnings (`swift build --build-tests` incluye los productos ejecutables de `Snippets/` automáticamente; no hace falta un paso separado). |
+| README corto sin historia | Resuelto | `wc -l AppFoundation/README.md CoreNetworking/README.md` → 93 y ~90 líneas (antes 996 y 774). `grep -rn "CN-0\|AF-0\|X-0\|auditor\|antes de\|ya no\|existía" AppFoundation/README.md CoreNetworking/README.md AppFoundation/Sources/AppFoundation/Documentation.docc CoreNetworking/Sources/CoreNetworking/Documentation.docc` → vacío. |
+| `CHANGELOG.md` por paquete | Resuelto | `AppFoundation/CHANGELOG.md`, `CoreNetworking/CHANGELOG.md`, ambos con `## [1.0.0] - 2026-09-02` (Roturas de API agregada) y `## [Unreleased]` vacío. `CHANGELOG.md` de la raíz es un índice de dos líneas que enlaza a ambos. |
+| `Examples/` por paquete | Resuelto | `AppFoundation/Examples/{CounterApp,NotesApp,LoginApp,CatalogApp}` (AF-07). `CoreNetworking/Examples/APIClientApp` — consumidor mínimo sin AppFoundation, `swift test` 4/4 en verde. |
+| `AGENTS.md` revisado | Resuelto | Ambos enlazan a `Documentation.docc/` y (CoreNetworking) a `Examples/APIClientApp`; contenido ya coherente con el generador/linter desde AF-08, sin cambios de fondo necesarios. |
+
+## Cobertura de API pública
+
+Inventario: `grep -rn "^public\|^    public\|^open " AppFoundation/Sources/AppFoundation CoreNetworking/Sources/CoreNetworking` más los productos de TestSupport (ver el informe del agente para el recuento línea a línea). Cada pieza principal (view models, contrato pantalla↔cáscara, errores, navegación, DI, UI, utilidades, requests, errores de red, retry, pinning, interceptores, autenticación, transporte) tiene un artículo con al menos un ejemplo de código que compila (`@Snippet` o bloque probado en `Examples/`/`READMEExamplesTests`). Los tipos de soporte de una pieza ya cubierta (variantes de `NavigationBarItem`, los cuatro `*ViewStyle`/`*Configuration`, cada `Category`/`Code` de `APIError`) se documentan vía el mismo artículo y el doc-comment propio del tipo, que DocC renderiza en su página de referencia — no cada uno tiene un artículo dedicado.
+
+## Guía «20 minutos» reproducida fuera del repo
+
+Ver el informe del agente para la transcripción completa (qué falló al reproducir cada guía y cómo se corrigió).
+
+## `git subtree split` — comprobación de publicación
+
+Ver el informe del agente para la salida literal de `git ls-tree` sobre `tmp-af-split`/`tmp-cn-split`.
+
+---
+
+# Procedimiento de tag en las ramas `subtree split`
+
+SwiftPM resuelve un paquete remoto por URL exigiendo `Package.swift` en la **raíz** del
+repositorio consumido — spm-pro tiene dos paquetes en subdirectorios, así que ninguno de
+los dos se puede etiquetar ni consumir directamente desde `main`. Cada paquete se publica
+por [`git subtree split`](https://git-scm.com/docs/git-subtree): un split reescribe el
+historial de un subdirectorio como si siempre hubiera sido la raíz de su propio repo, sin
+tocar `main`.
+
+```bash
+# CoreNetworking
+git subtree split --prefix=CoreNetworking -b cn-only
+git push <remoto-corenetworking> cn-only:main
+git tag -a 1.0.0 cn-only -m "CoreNetworking 1.0.0"
+git push <remoto-corenetworking> 1.0.0
+
+# AppFoundation
+git subtree split --prefix=AppFoundation -b af-only
+git push <remoto-appfoundation> af-only:main
+git tag -a 1.0.0 af-only -m "AppFoundation 1.0.0"
+git push <remoto-appfoundation> 1.0.0
+```
+
+Notas:
+
+- El split se repite en cada release: no se reutiliza la rama `cn-only`/`af-only` local
+  entre versiones, se recalcula desde `main` (`git branch -D cn-only` antes de rehacer el
+  split, o `-f` en `subtree split`).
+- El tag se crea sobre el commit que el split produjo para esa versión — nunca sobre
+  `main`, donde `Package.swift` no está en la raíz.
+- `git subtree split` puede tardar varios minutos en un historial grande: recorre cada
+  commit que tocó el prefijo.
+- Verificación de que el árbol publicado trae todo lo necesario (README, CHANGELOG,
+  AGENTS.md, `Documentation.docc`, `Snippets`, `Examples`) antes de empujar:
+  ```bash
+  git ls-tree -r --name-only cn-only | grep -E "README|CHANGELOG|AGENTS|docc|Snippets|Examples"
+  ```
+- Doble check §4 (comandos exactos, ya verificados en esta rama): el único tag existente
+  del monorepo (`0.1.4`) vive en `cn-only`; `af-only` es el split de AppFoundation. Con las
+  roturas de API acumuladas desde entonces, la versión que corresponde a ambos paquetes es
+  **1.0.0**.
+
+---
+
+# Checklist final del propietario
+
+- [ ] El PR de `prd/X-03` (y de cualquier PRD pendiente por delante en la tabla de oleadas)
+      está mergeado a `main`.
+- [ ] `SWIFT_STRICT_WARNINGS=1 swift build --build-tests` (0 warnings) y `swift test
+      --parallel` × 3 verdes en ambos paquetes, ejecutados sobre `main` ya mergeado.
+- [ ] Los cinco ejemplos (`AppFoundation/Examples/{CounterApp,NotesApp,LoginApp,CatalogApp}`,
+      `CoreNetworking/Examples/APIClientApp`) compilan y pasan `swift test`.
+- [ ] `swift format lint --strict --recursive` en 0 sobre ambos paquetes (`Sources`,
+      `Tests`, `Examples`, `Plugins`).
+- [ ] `xcodebuild build -destination 'generic/platform=iOS Simulator'` verde para los
+      schemes `AppFoundation` y `CoreNetworking-Package`.
+- [ ] `xcodebuild docbuild` verde para ambos schemes, sin warnings de enlaces rotos.
+- [ ] La verificación manual de AF-12/AF-13 (swipe-back con `chrome: .native`/`.custom`,
+      VoiceOver en el botón atrás, Dynamic Type XXL en la barra `.custom` — procedimiento
+      arriba) se ha hecho al menos una vez en simulador/dispositivo real desde que se tocó
+      por última vez `ScreenContainer`/`CustomNavigationBar`.
+- [ ] `git subtree split --prefix=CoreNetworking -b cn-only` y
+      `--prefix=AppFoundation -b af-only`; `git ls-tree -r --name-only` sobre cada rama
+      confirma README/CHANGELOG/AGENTS.md/`Documentation.docc`/`Snippets`/`Examples`
+      presentes.
+- [ ] Tag `1.0.0` creado y empujado en **cada** rama split (`cn-only`, `af-only`) — nunca
+      en `main` — siguiendo el procedimiento de arriba.
+- [ ] Último tag de AppFoundation confirmado en su remoto (el remoto de AppFoundation no
+      está configurado en este entorno de desarrollo; confirmarlo antes de asumir que
+      `0.1.4`/versiones previas quedaron publicadas).
+- [ ] Un consumidor de prueba resuelve `AppFoundation`, `CoreNetworking` y
+      `CoreNetworkingTestSupport` apuntando a sus repos por URL + `from: "1.0.0"` (no solo
+      por `path:` local) — paso posterior a empujar ambos tags.
+- [ ] `swift package archinit` ejecutado sobre la primera app real que adopte el kit de
+      arquitectura, para confirmar que `.archlint.yml`/`Features/`/`AGENTS.md`/
+      `.claude/skills/feature.md` se generan correctamente fuera de este monorepo.
+- [ ] Ninguna rama `prd/*` sin mergear queda huérfana (`git branch --no-merged main`).

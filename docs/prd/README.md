@@ -53,7 +53,7 @@ Conflictos esperados y cómo evitarlos:
 
 ```bash
 git worktree add ../spm-pro-CN-01 -b prd/CN-01 main
-# … el agente recibe: "Ejecuta PRD/PRD-CN-01.md. Lee primero PRD/README.md y AUDITORIA-2026-09-01.md."
+# … el agente recibe: "Ejecuta docs/prd/PRD-CN-01.md. Lee primero docs/prd/README.md y docs/AUDITORIA-2026-09-01.md."
 ```
 
 Orden de merge dentro de una oleada: el que aparece primero en la tabla. Tras cada merge a `main`, la siguiente
@@ -78,6 +78,6 @@ oleada parte de `main` actualizado.
 | [AF-05](PRD-AF-05.md) | Contrato pantalla ↔ cáscara: `ScreenState`, `ActionHandling`, `ActionSender` | decisión del propietario | AppFoundation |
 | [CN-07](PRD-CN-07.md) | Pulido tras el doble check | DC-CN-1…7 | CoreNetworking |
 | [AF-06](PRD-AF-06.md) | Pulido tras el doble check | DC-AF-2…5 | AppFoundation |
-| [AF-07](PRD-AF-07.md) | Kit de arquitectura: `Logic`, `LogicViewModel`, `EndpointService`, test support, 4 ejemplos | `ARQUITECTURA-KIT-2026-09-02.md` | ambos |
+| [AF-07](PRD-AF-07.md) | Kit de arquitectura: `Logic`, `LogicViewModel`, `EndpointService`, test support, 4 ejemplos | [`../ARQUITECTURA-KIT-2026-09-02.md`](../ARQUITECTURA-KIT-2026-09-02.md) | ambos |
 | [AF-08](PRD-AF-08.md) | Plugins: generador `generate-feature`, linter `ArchitectureLint`, `archinit` | ídem | AppFoundation |
 | [X-03](PRD-X-03.md) | (v2) Documentación dentro de cada SPM (DocC + Snippets) y cierre 1.0.0 | DC-CN-8, DC-AF-6/7 | ambos |
