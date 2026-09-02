@@ -90,6 +90,42 @@ PRD: [PRD-AF-05](PRD/PRD-AF-05.md).
 
 PRD: [PRD-AF-07](PRD/PRD-AF-07.md).
 
+<!-- PRD-AF-08 -->
+#### Added
+
+- `archlint` (`executableTarget`, sin dependencias externas): analizador léxico propio
+  (tokens, `import`, declaraciones `class/struct/enum/actor/protocol`, ignora comentarios y
+  strings) que aplica las reglas R1-R11 de `ARQUITECTURA-KIT-2026-09-02.md` §1 y §8 y emite
+  diagnósticos `ruta:línea:col: error: [ArchLint.Rn] mensaje` navegables en Xcode.
+  Configuración opcional `.archlint.yml` (formato propio `key: value` + listas, sin
+  librería YAML): sufijos por capa, `strict:`, `disabled:`, `ignore:`. Código dentro de
+  `#if DEBUG`/`#Preview { … }` queda exento de las reglas de referencia (es andamiaje de
+  previsualización, no producción).
+- **`ArchitectureLint`**: build-tool plugin — `plugins: [.plugin(name: "ArchitectureLint",
+  package: "AppFoundation")]` en un target — corre `archlint` sobre `target.sourceFiles` en
+  cada build; una violación falla el build. **`ArchLintCommand`**: el mismo `archlint` como
+  command plugin, `swift package archlint [--path DIR]`, para CI sin integrarlo en ningún
+  target.
+- **`GenerateFeature`**: command plugin, `swift package --allow-writing-to-package-directory
+  generate-feature <Nombre> [--api] [--local] [--module] [--analytics] [--no-logic]
+  [--no-tests] [--path Features] [--dry-run] [--target NAME] [--route AppRoute.xxx]`. Genera
+  el cascarón View → ViewModel → Logic → Services/Stores (+ tests/mocks) desde plantillas de
+  texto en `AppFoundation/Templates/*.txt` (motor de plantillas propio, `{{Feature}}`/
+  `{{feature}}` y bloques `{{#flag}}…{{/flag}}`/`{{^flag}}…{{/flag}}`, sin librería externa) —
+  las cuatro variantes de `ARQUITECTURA-KIT-2026-09-02.md` §1, con M1 (`DomainError` por
+  feature), M2 (DTOs solo en Service/Store), M4 (`XxxModule` composition root), M7
+  (cache-then-network con `--api --local`), M9 (mocks/spies con contadores). Nunca edita el
+  `.xcodeproj` ni el `enum AppRoute` — los imprime como pasos manuales.
+- **`ArchInit`**: command plugin, `swift package --allow-writing-to-package-directory
+  archinit`. Crea `.archlint.yml`, `Features/`, copia `AGENTS.md` a la raíz del proyecto,
+  añade (o crea) `CLAUDE.md` con `@AGENTS.md`, e instala `.claude/skills/feature.md` (skill
+  `/feature` de Claude Code). Nunca sobrescribe un fichero existente.
+- Sección «Generador y linter» en `README.md` y `AGENTS.md`; `Scripts/verify-generator.sh`
+  (verificación de integración real en un paquete temporal fuera del repo, usado también por
+  el job `generator` de CI).
+
+PRD: [PRD-AF-08](PRD/PRD-AF-08.md).
+
 ### CoreNetworking
 
 <!-- PRD-CN-07 -->
