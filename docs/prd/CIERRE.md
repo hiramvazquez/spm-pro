@@ -308,15 +308,66 @@ Ejecutado en la rama `prd/X-03`, sobre `main` con AF-07 y AF-08 ya mergeados.
 
 ## Cobertura de API pública
 
-Inventario: `grep -rn "^public\|^    public\|^open " AppFoundation/Sources/AppFoundation CoreNetworking/Sources/CoreNetworking` más los productos de TestSupport (ver el informe del agente para el recuento línea a línea). Cada pieza principal (view models, contrato pantalla↔cáscara, errores, navegación, DI, UI, utilidades, requests, errores de red, retry, pinning, interceptores, autenticación, transporte) tiene un artículo con al menos un ejemplo de código que compila (`@Snippet` o bloque probado en `Examples/`/`READMEExamplesTests`). Los tipos de soporte de una pieza ya cubierta (variantes de `NavigationBarItem`, los cuatro `*ViewStyle`/`*Configuration`, cada `Category`/`Code` de `APIError`) se documentan vía el mismo artículo y el doc-comment propio del tipo, que DocC renderiza en su página de referencia — no cada uno tiene un artículo dedicado.
+Inventario de tipos públicos de nivel superior (`struct`/`class`/`enum`/`protocol`/`actor`/
+`typealias`), sin contar miembros anidados: AppFoundation 57 (producto `AppFoundation`) + 4
+(`AppFoundationTestSupport`); CoreNetworking 39 (producto `CoreNetworking`) + 12
+(`CoreNetworkingTestSupport`). Enlaces de símbolo curados en las secciones «Topics» de
+`Documentation.docc`: 48 en AppFoundation, 33 en CoreNetworking — cubren todos los tipos
+principales (view models, contrato pantalla↔cáscara, errores, navegación, DI, UI,
+utilidades, requests, errores de red, retry, pinning, interceptores, autenticación,
+transporte), cada uno con al menos un ejemplo de código que compila (`@Snippet` o bloque
+probado en `Examples/`/`READMEExamplesTests`). Los tipos no curados explícitamente en
+`Topics` — variantes anidadas de `NavigationBarItem`/`AlertState`/`BannerState`, los pares
+`*Configuration`/`*ViewStyle`, cada `Category`/`Code` de `APIError`, los productos de
+`TestSupport` (documentados por nombre en <doc:Testing> de cada paquete, sin artículo
+DocC propio porque viven en un módulo distinto del que documenta el catálogo) — siguen
+apareciendo en el artículo que cubre su pieza y en la página de referencia que DocC genera
+de su propio doc-comment (varios de esos doc-comments ya traían su propio bloque
+`## Example`, verificado en la lectura previa del código fuente).
 
 ## Guía «20 minutos» reproducida fuera del repo
 
-Ver el informe del agente para la transcripción completa (qué falló al reproducir cada guía y cómo se corrigió).
+Reproducida en un paquete SwiftPM nuevo por `mktemp -d`, copiando los bloques de
+`GettingStarted.md` tal cual, paso a paso, para cada paquete; borrado al terminar.
+
+- **AppFoundation**: tres fallos reales, corregidos en la guía — (1) el `Package.swift`
+  del paso 1 no traía `defaultIsolation(MainActor.self)` ni los `upcoming features` que
+  usa el propio paquete, así que un test normal no podía llamar a un tipo
+  MainActor-isolated (`BaseViewModel`/`Container`) sin `@MainActor` explícito; (2) los
+  pasos 2, 4 y 5 mezclaban declaraciones con la demostración de uso (una llamada/`await`
+  suelto), que no compila fuera del único fichero "main" de un target de biblioteca —
+  aclarado qué línea va en qué fichero y que la demostración de uso va al paso de test.
+  Tras el arreglo: `swift build` compila, `swift test` corre 2 tests en verde.
+- **CoreNetworking**: mismo problema de declaración-vs-uso en los pasos 2/4/5, corregido
+  igual; y un fallo de compilación real en el paso 6:
+  `mock.stub(GetGames.self, returning: .init(games: ["chess"]))` no compila —
+  `stub<Request: BaseRequest, Value>(_:returning:)` no liga `Value` a `Request.Response`,
+  así que `.init(...)` no puede inferir el tipo por contexto. Corregido a
+  `GetGames.Response(games: ["chess"])`, también en `CoreNetworking/README.md`. Tras el
+  arreglo: `swift build` compila, `swift test` corre 1 test en verde.
 
 ## `git subtree split` — comprobación de publicación
 
-Ver el informe del agente para la salida literal de `git ls-tree` sobre `tmp-af-split`/`tmp-cn-split`.
+```
+$ git subtree split --prefix=AppFoundation -b tmp-af-split
+$ git subtree split --prefix=CoreNetworking -b tmp-cn-split
+$ git ls-tree -r --name-only tmp-af-split | grep -E "README|CHANGELOG|AGENTS|docc|Snippets|Examples" | head
+$ git ls-tree -r --name-only tmp-cn-split | grep -E "README|CHANGELOG|AGENTS|docc|Snippets|Examples" | head
+$ git branch -D tmp-af-split tmp-cn-split
+```
+
+Ejecutado en la rama `prd/X-03` (commit `cac98dd` para `tmp-af-split`, `8424645` para
+`tmp-cn-split`, ambos borrados tras la comprobación). Raíz de `tmp-af-split`: `AGENTS.md`,
+`CHANGELOG.md`, `Examples/`, `Package.swift`, `Plugins/`, `README.md`, `Snippets/`,
+`Sources/`, `Templates/`, `Tests/` — sin ningún resto de `PRD/`, `AUDITORIA-*`,
+`ARQUITECTURA-KIT-*` ni ficheros de la raíz del monorepo. Raíz de `tmp-cn-split`:
+`AGENTS.md`, `CHANGELOG.md`, `Examples/`, `Package.swift`, `README.md`, `Snippets/`,
+`Sources/`, `Tests/` (más `.gitignore`/`.swiftpm`/`.swift-mutation-testing.yml`, ficheros
+de configuración propios del paquete). El grep confirma en ambos: `Documentation.docc/`
+completo (todos los artículos), `Snippets/` completo, `Examples/` completo con sus
+`README.md`/`Package.swift`/`Sources`/`Tests`, y `AGENTS.md`/`CHANGELOG.md`/`README.md` en
+la raíz — el árbol que SwiftPM resolvería al consumir cada paquete por URL trae todo lo
+necesario.
 
 ---
 
