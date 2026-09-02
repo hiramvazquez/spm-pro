@@ -30,21 +30,33 @@ public struct Profile: Sendable, Equatable {
 /// (AUDITORIA-2026-09-01.md AF-01/AF-03): `work` never captures `self`, so a screen that
 /// fails and gets dismissed still deallocates, and `deinit` actually cancels an in-flight
 /// load.
+///
+/// `ActionHandling` (AF-05, PRD-AF-05) makes `handle(_:)` the single entry point a
+/// `ScreenContainer` content closure — or a test — uses: `load()` below is `private`, never
+/// called directly from outside this file.
 @MainActor
-public final class ProfileViewModel: BaseViewModel {
+public final class ProfileViewModel: BaseViewModel, ActionHandling {
     public private(set) var profile: Profile?
 
     private let service: any APIServiceProtocol
+
+    /// Every action `ProfileView` recognizes.
+    public enum Action: Sendable {
+        case load
+    }
 
     public init(service: any APIServiceProtocol, errorPresenter: (any ErrorPresenting)? = nil) {
         self.service = service
         super.init(errorPresenter: errorPresenter)
     }
 
-    /// Returns its `Task` (`LoadableViewModel`'s "Deterministic tests" pattern): await it
-    /// in a test instead of polling `phase`.
-    @discardableResult
-    public func load() -> Task<Void, Never> {
+    public func handle(_ action: Action) {
+        switch action {
+        case .load: load()
+        }
+    }
+
+    private func load() {
         performLoad { vm in
             let response = try await vm.service.execute(GetProfileRequest())
             vm.profile = Profile(name: response.name)
