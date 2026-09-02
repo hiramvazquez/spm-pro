@@ -53,6 +53,71 @@ X-02 cierra la versión.
 
 PRD: [PRD-AF-05](PRD/PRD-AF-05.md).
 
+### CoreNetworking
+
+<!-- PRD-CN-07 -->
+
+#### Breaking
+
+- **`APIServiceProtocol.upload`** pasa a la misma forma que `execute`:
+  `upload(_:data:progress:) -> Request.Response` (el tipo de respuesta ya no
+  se anota en el call site, se infiere del propio request) más la sobrecarga
+  `upload(_:data:as:progress:) -> Value`, igual que `execute(_:as:)`. Se
+  elimina `upload(request:data:progress:) -> Response`. Migrar
+  `service.upload(request: req, data: d)` a `service.upload(req, data: d)`.
+- **`APIError.Category`** gana `.unreachable`
+  (`networkConnectionLost`/`cannotConnectToHost`/`dnsLookupFailed`/
+  `cannotFindHost`, antes indistinguibles de `.unknown`): un `switch`
+  exhaustivo sobre `Category` en la app deja de compilar hasta añadir el caso
+  — el propio doc del tipo pide comparar contra los casos conocidos y caer a
+  `default`, nunca `switch` exhaustivo, precisamente por esto.
+- `MockAPIService` (`CoreNetworkingTestSupport`) lanza `APIError(code:
+  .unstubbed)` — no `.invalidResponse` — cuando un request no tiene stub
+  registrado o el stub no coincide con el tipo pedido; `underlying` nombra el
+  request y el tipo esperado. Un test que comparaba contra `.invalidResponse`
+  para este caso debe comparar contra `.unstubbed` (extensión pública de
+  `APIError.Code`, abierto para eso).
+
+#### Changed
+
+- **`download(_:to:)`** pasa por el mismo `performWithRetry` que
+  `execute`/`upload`/`data` — interceptores, `retriers` y `retryPolicy`
+  incluidos — en vez de una copia paralela del pipeline "de un único
+  intento". Cada intento reescribe `destination` atómicamente, así que
+  reintentar es válido: una descarga a medias reintenta desde cero, nunca
+  reanuda. El mapeo de errores (pinning → `.untrustedServer`, status non-2xx
+  → `.httpStatus` con limpieza de `destination`, cancelación → `.cancelled`)
+  no cambia de comportamiento observable.
+- `NetworkingConfiguration.protocolClasses` queda `@available(*,
+  deprecated, message: "Configura protocolClasses en sessionConfiguration")`
+  — sigue funcionando (se fusiona en la `URLSessionConfiguration` real), pero
+  `sessionConfiguration` es ahora la única forma soportada de instalar un
+  `URLProtocol` de mock, no dos caminos que hacían lo mismo.
+
+#### Added
+
+- `Empty` conforma `Equatable`.
+- `APIError.Code.unstubbed` (`CoreNetworkingTestSupport`, `extension
+  APIError.Code`): el código que lanza `MockAPIService` sin stub — ver
+  Breaking arriba.
+- `errorDescription` (EN/ES, `Localizable.xcstrings`) para `.unreachable`:
+  "Could not connect to the server." / "No se pudo conectar con el
+  servidor.".
+
+#### Docs
+
+- `RequestSummary.init(URLRequest)` documenta que un método fuera del
+  `HTTPMethod` cerrado (p. ej. WebDAV) se guarda como `.get` igual que
+  `httpMethod == nil` — limitación conocida, no un bug; `HTTPMethod` sigue
+  cerrado a propósito (sin `case custom(String)`).
+- Comentarios que citaban PRDs como referencia futura (`APIService.upload`,
+  `NetworkingConfiguration.defaultSessionConfiguration`,
+  `Duration.timeInterval`, `TaskDelegate`, `URLSessionTransport`,
+  `InMemoryTransport`, `HTTPTransport`) reescritos en presente: el código no
+  habla de los PRDs que lo dejaron así.
+
+PRD: [PRD-CN-07](PRD/PRD-CN-07.md).
+
 ## [1.0.0] - 2026-09-02
 
 Primera versión estable. Cierra la auditoría técnica de 2026-09-01
