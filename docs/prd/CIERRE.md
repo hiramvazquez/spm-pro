@@ -452,3 +452,16 @@ Notas:
 ## Doble check final (2026-09-02, tras X-04)
 
 Informe completo y puntuación: `docs/AUDITORIA-2026-09-02-final.md`. Estado de `main` (`b7e4e21`): AppFoundation 261 tests, CoreNetworking 138, ejemplos 50, lint estricto 0, iOS OK, `docbuild` limpio en DerivedData nueva (iOS y macOS), 29 bloques de DocC sincronizados con `Snippets/`, ninguna rama `prd/*` sin mergear. Correcciones aplicadas en este doble check: generador en paquete recién creado (`f13faee`), instalación por repo de cada paquete y `LICENSE` dentro del SPM (`b89ffa5`), código generado sin referencias al monorepo (`7ab883d`), parámetros documentados y lint residual (`7fb7c5a`), X-04. Puntuación final: CoreNetworking 10/10; AppFoundation 10/10 condicionado a la verificación manual AF-12/AF-13; kit + plugins 9/10.
+
+## Publicación (2026-09-02)
+
+Ambos paquetes publicados por `git subtree split` desde `main` del monorepo, con CI propio en cada repo:
+
+| Repo | `main` | CI | Notas |
+|---|---|---|---|
+| `hiramvazquez/CoreNetworking` | `1991ced` (desde `0.1.4`) | verde: lint, build+test, ejemplo, DocC | Dos correcciones surgidas del CI con Xcode 26.3: `MockURLProtocol` entrega con latencia vía `DispatchWorkItem` (el closure `sending` de `Task` no admite capturar `self`), y doc de `upload(_:data:)` por el nombre interno. |
+| `hiramvazquez/AppFoundation` | `895dfdd` (desde `0.1.1`) | verde: 8 jobs (lint, build+test, DocC, generador/linter, 4 ejemplos) | Validado primero en la rama `ci-check` (PR #1). Correcciones: `ResourceBundle` `nonisolated` (con Xcode 26.3, `Bundle.module` se genera aislado al `MainActor` bajo `defaultIsolation`), `Package.resolved` fuera de los ejemplos, y los dos comentarios de Copilot (banner como `Button`, corchetes escapados en el glob). |
+
+Lección para futuras publicaciones: el CI de los repos usa Xcode 26.3 (`latest-stable` en `macos-15`), más antiguo que el local (26.6); el compilador y DocC de esa versión son más estrictos en `sending` y en nombres de parámetros. Validar siempre en rama antes de avanzar `main`.
+
+Pendiente para el tag `1.0.0` (sin cambios): verificación manual AF-12/AF-13; `git tag -a 1.0.0` en `main` de cada repo (equivale a la rama split ya empujada) y push del tag; consumidor por URL + `from: "1.0.0"`; después, cambiar `LoginApp`/`CatalogApp` de `branch: "main"` a `from: "1.0.0"`.
