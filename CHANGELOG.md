@@ -71,11 +71,22 @@ PRD: [PRD-AF-05](PRD/PRD-AF-05.md).
   (mismo contrato que el de `CoreNetworkingTestSupport`, duplicado — AppFoundation no
   depende de CoreNetworking), `SpyRecorder<Call: Sendable>` (grabador de llamadas thread-safe
   para spies generados/hechos a mano).
+- `DomainError` (`Architecture/AppError/DomainError.swift`): `public protocol DomainError:
+  Error, AppErrorConvertible, Sendable { var isRetryable: Bool { get } }` (default
+  `isRetryable = false`) — lo que un `Logic` lanza en vez de propagar el error de su
+  Service/Store; el `ViewModel`/`ErrorPresenting` de una app nunca vuelven a ver un
+  `APIError` o un error de SwiftData (`ARQUITECTURA-KIT-2026-09-02.md` §8, M1).
 - `AGENTS.md` en la raíz del paquete: arquitectura, naming, las cuatro variantes y cómo
   testear cada capa, enlazado desde la nueva sección «Arquitectura» del README.
 - `AppFoundation/Examples/`: cuatro paquetes SwiftPM autocontenidos, uno por variante —
-  `CounterApp` (sin datos), `NotesApp` (solo local, SwiftData), `LoginApp` (solo API,
-  sustituye a `Examples/IntegrationExample`), `CatalogApp` (API + local, cache-then-network).
+  `CounterApp` (sin datos), `NotesApp` (solo local, SwiftData real vía `@ModelActor`),
+  `LoginApp` (solo API, sustituye a `Examples/IntegrationExample`; `SessionStore` +
+  logout global cuando falla el refresh del token, M6), `CatalogApp` (API + local;
+  `CatalogLogic.cached()`/`.refresh()` explícitos, cache-then-network, M7). Los cuatro
+  aplican M1 (`DomainError` por feature), M2 (DTOs solo en Service/Store, modelos de
+  dominio en el resto), M3 (la Logic no referencia `Router`/`Coordinator`), M4 (`XxxModule:
+  DependencyModule` como único composition root) y M5 (Logic `nonisolated`, Service
+  `struct Sendable`, Store `actor`/`@ModelActor`).
 
 PRD: [PRD-AF-07](PRD/PRD-AF-07.md).
 
