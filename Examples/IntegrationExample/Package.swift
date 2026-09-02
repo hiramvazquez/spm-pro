@@ -34,7 +34,15 @@ let package = Package(
             name: "IntegrationExample",
             dependencies: [
                 .product(name: "AppFoundation", package: "AppFoundation"),
-                .product(name: "CoreNetworking", package: "CoreNetworking")
+                .product(name: "CoreNetworking", package: "CoreNetworking"),
+                // Previews only (`ProfilePreview`, guarded by `#if DEBUG` at the call
+                // site) — `CoreNetworkingTestSupport`'s own Package.swift documents this
+                // exact use ("test targets and previews"). SwiftPM's target-dependency
+                // conditions don't support a build-configuration case (only `platforms`/
+                // `traits`), so this links into every configuration of THIS example
+                // target; an app vendoring the pattern keeps its own `ProfilePreview`
+                // (or equivalent) in a target that only debug builds pull in.
+                .product(name: "CoreNetworkingTestSupport", package: "CoreNetworking")
             ],
             path: "Sources/IntegrationExample",
             swiftSettings: swiftSettings
