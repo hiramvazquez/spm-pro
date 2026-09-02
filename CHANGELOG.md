@@ -53,6 +53,43 @@ X-02 cierra la versión.
 
 PRD: [PRD-AF-05](PRD/PRD-AF-05.md).
 
+<!-- PRD-AF-07 -->
+#### Added
+
+- `Logic` (`Architecture/Logic/Logic.swift`): `public protocol Logic: AnyObject {}`, el
+  marcador que toda `XxxLogicProtocol` de una feature conforma — sin requisitos propios;
+  documenta la arquitectura View → ViewModel → Logic → Services/Stores
+  (`ARQUITECTURA-KIT-2026-09-02.md` §1-2) en el propio tipo.
+- `LogicViewModel<L>` (`Architecture/ViewModels/LogicViewModel.swift`): `open class
+  LogicViewModel<L>: BaseViewModel` con `public let logic: L` e `init(logic:errorPresenter:
+  cancellationRecognizer:clock:)`. Hereda `phase`/`activity`/`performLoad`/`performActivity`
+  de `BaseViewModel`; no conforma `ActionHandling` (cada subclase declara su propio
+  `enum Action`).
+- Nuevo producto **`AppFoundationTestSupport`** (target separado; nunca en el binario de
+  producción, nunca dependencia del producto `AppFoundation`): `InMemoryStore<Key: Hashable
+  & Sendable, Value: Sendable>` (actor genérico para dobles de `*Storing`), `ManualClock`
+  (mismo contrato que el de `CoreNetworkingTestSupport`, duplicado — AppFoundation no
+  depende de CoreNetworking), `SpyRecorder<Call: Sendable>` (grabador de llamadas thread-safe
+  para spies generados/hechos a mano).
+- `DomainError` (`Architecture/AppError/DomainError.swift`): `public protocol DomainError:
+  Error, AppErrorConvertible, Sendable { var isRetryable: Bool { get } }` (default
+  `isRetryable = false`) — lo que un `Logic` lanza en vez de propagar el error de su
+  Service/Store; el `ViewModel`/`ErrorPresenting` de una app nunca vuelven a ver un
+  `APIError` o un error de SwiftData (`ARQUITECTURA-KIT-2026-09-02.md` §8, M1).
+- `AGENTS.md` en la raíz del paquete: arquitectura, naming, las cuatro variantes y cómo
+  testear cada capa, enlazado desde la nueva sección «Arquitectura» del README.
+- `AppFoundation/Examples/`: cuatro paquetes SwiftPM autocontenidos, uno por variante —
+  `CounterApp` (sin datos), `NotesApp` (solo local, SwiftData real vía `@ModelActor`),
+  `LoginApp` (solo API, sustituye a `Examples/IntegrationExample`; `SessionStore` +
+  logout global cuando falla el refresh del token, M6), `CatalogApp` (API + local;
+  `CatalogLogic.cached()`/`.refresh()` explícitos, cache-then-network, M7). Los cuatro
+  aplican M1 (`DomainError` por feature), M2 (DTOs solo en Service/Store, modelos de
+  dominio en el resto), M3 (la Logic no referencia `Router`/`Coordinator`), M4 (`XxxModule:
+  DependencyModule` como único composition root) y M5 (Logic `nonisolated`, Service
+  `struct Sendable`, Store `actor`/`@ModelActor`).
+
+PRD: [PRD-AF-07](PRD/PRD-AF-07.md).
+
 ### CoreNetworking
 
 <!-- PRD-CN-07 -->
@@ -148,6 +185,20 @@ PRD: [PRD-CN-07](PRD/PRD-CN-07.md).
   (DC-AF-6).
 
 PRD: [PRD-AF-06](PRD/PRD-AF-06.md).
+
+<!-- PRD-AF-07 -->
+#### Added
+
+- `EndpointService` (`Sources/CoreNetworking/EndpointService.swift`): `public protocol
+  EndpointService: Sendable { var api: any APIServiceProtocol { get } }` con `public
+  extension EndpointService { func call<R: BaseRequest>(_ request: R) async
+  throws(APIError) -> R.Response }`. Plantilla cómoda para un `Service` de un solo request
+  — no un requisito: un `Service` que necesite más de un patrón de llamada sigue llamando
+  `api.execute` directamente.
+- `AGENTS.md` en la raíz del paquete: un Service por request, mapeo de errores con
+  `category`/`decodeBody`, cómo testear con `MockAPIService`/`InMemoryTransport`.
+
+PRD: [PRD-AF-07](PRD/PRD-AF-07.md).
 
 ## [1.0.0] - 2026-09-02
 
