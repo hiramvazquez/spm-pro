@@ -1,4 +1,4 @@
-# CI de spm-pro: dos paquetes + el ejemplo de integración, un workflow.
+# CI de spm-pro: dos paquetes + los cuatro ejemplos del kit de arquitectura, un workflow.
 #
 # - `lint`: swift-format del toolchain, configuración en `.swift-format` (raíz), en modo
 #   `--strict` y bloqueante. X-01 lo dejó con `continue-on-error` y sin `--strict` porque
@@ -10,9 +10,12 @@
 #     2. `swift test --parallel` en macOS (host).
 #     3. `xcodebuild test` en iOS Simulator, con el simulador que exista en el runner
 #        (detectado en un paso previo; los nombres cambian con cada Xcode).
-# - `integration-example`: `Examples/IntegrationExample`, la prueba de que ambos paquetes
-#   se adoptan JUNTOS sin fricción (PRD-X-02). Solo macOS/`swift test`: no expone un
-#   producto de app, así que no hay scheme de `xcodebuild test` que ejecutar.
+# - `example`: matriz por ejemplo, uno por variante del kit de arquitectura (PRD-AF-07) —
+#   `AppFoundation/Examples/{CounterApp,NotesApp,LoginApp,CatalogApp}` — cada uno la prueba
+#   de que ambos paquetes (o solo AppFoundation, en CounterApp/NotesApp) se adoptan sin
+#   fricción. Solo macOS/`swift test`: ninguno expone un producto de app, así que no hay
+#   scheme de `xcodebuild test` que ejecutar. Sustituye al job único de
+#   `Examples/IntegrationExample` (movido con `git mv` a `AppFoundation/Examples/LoginApp`).
 name: CI
 
 on:
@@ -53,9 +56,8 @@ jobs:
       - name: swift format lint --strict
         run: |
           swift format lint --strict --recursive \
-            AppFoundation/Sources AppFoundation/Tests \
-            CoreNetworking/Sources CoreNetworking/Tests \
-            Examples
+            AppFoundation/Sources AppFoundation/Tests AppFoundation/Examples \
+            CoreNetworking/Sources CoreNetworking/Tests
 
   test:
     name: ${{ matrix.package }}
@@ -144,12 +146,16 @@ jobs:
             ${{ matrix.package }}/xcodebuild-${{ matrix.package }}.log
           if-no-files-found: ignore
 
-  integration-example:
-    name: Examples/IntegrationExample
+  example:
+    name: Examples/${{ matrix.example }}
     runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        example: [CounterApp, NotesApp, LoginApp, CatalogApp]
     defaults:
       run:
-        working-directory: Examples/IntegrationExample
+        working-directory: AppFoundation/Examples/${{ matrix.example }}
     steps:
       - uses: actions/checkout@v4
 
@@ -166,10 +172,10 @@ jobs:
       - name: Cache de .build
         uses: actions/cache@v4
         with:
-          path: Examples/IntegrationExample/.build
-          key: spm-IntegrationExample-${{ runner.os }}-${{ hashFiles('Examples/IntegrationExample/Package.swift', 'AppFoundation/Package.swift', 'CoreNetworking/Package.swift') }}
+          path: AppFoundation/Examples/${{ matrix.example }}/.build
+          key: spm-${{ matrix.example }}-${{ runner.os }}-${{ hashFiles(format('AppFoundation/Examples/{0}/Package.swift', matrix.example), 'AppFoundation/Package.swift', 'CoreNetworking/Package.swift') }}
           restore-keys: |
-            spm-IntegrationExample-${{ runner.os }}-
+            spm-${{ matrix.example }}-${{ runner.os }}-
 
       - name: Build estricto (0 warnings)
         run: SWIFT_STRICT_WARNINGS=1 swift build --build-tests
