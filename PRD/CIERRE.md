@@ -180,3 +180,44 @@ Checklist antes de empujar el tag:
       `path:` local) — el tag tiene que existir y estar empujado antes de poder probar esto,
       así que es el único paso que va DESPUÉS de `git push origin 1.0.0`.
 - [ ] Ninguna rama `prd/*` sin mergear queda huérfana (`git branch --no-merged main`).
+
+---
+
+## Verificación final ejecutada en esta rama (2026-09-02)
+
+Entorno: Xcode 26.6, `xcrun simctl` con `iPhone 17` (iOS 26.5), simulador con idioma
+`AppleLanguages = (es-ES, en-MX)`.
+
+| Comprobación | AppFoundation | CoreNetworking |
+|---|---|---|
+| `SWIFT_STRICT_WARNINGS=1 swift build --build-tests` | 0 warnings | 0 warnings |
+| `swift test --parallel` × 3 | verde, 207 tests las 3 veces | verde, 131 tests las 3 veces |
+| `xcodebuild build -destination 'generic/platform=iOS Simulator'` | `BUILD SUCCEEDED` (scheme `AppFoundation`) | `BUILD SUCCEEDED` (scheme `CoreNetworking-Package`) |
+| `xcodebuild test -destination 'platform=iOS Simulator,name=iPhone 17'` | `TEST SUCCEEDED`, 207 tests (requerido por PRD-X-02) | `TEST SUCCEEDED`, 130 tests (verificación extra, no exigida por el PRD para este paquete) |
+| `swift format lint --strict --recursive` (Sources+Tests de ambos + `Examples`) | 0 avisos | 0 avisos |
+
+### Hallazgos nuevos, descubiertos por esta verificación (no estaban en los 43 de la auditoría)
+
+**1. `APIErrorTests.localizedDescriptionEnglish()` fallaba bajo `xcodebuild test` con el
+simulador en español — corregido en esta rama.** `errorDescription(locale:)` pasa un
+`Locale` explícito a `String(localized:bundle:locale:)`, pero ese override no es fiable
+frente a un `.lproj` compilado por Xcode cuando el idioma del simulador ya coincide con
+otra localización del catálogo: pedir `"en"` en un simulador `es-ES` devolvía la frase en
+español. Es un comportamiento de Foundation/String Catalogs (ya documentado indirectamente
+por `AppFoundation/Tests/AppFoundationTests/LocalizationTests.swift`, que evita la misma
+trampa cargando el `.lproj` por *path* en vez de confiar en `locale:`), no un bug de
+`APIError`: la propiedad pública `errorDescription` siempre usa `.current`, así que en
+producción nunca pide una localización distinta de la del dispositivo. Corregido con el
+mismo mecanismo que ya usa AppFoundation (commit `55a3254`).
+
+**2. `RetrierTests.concurrentRequestsDedupRefresh()` es intermitente bajo `xcodebuild
+test` en ejecución de la suite completa — NO corregido, fuera del alcance de X-02.**
+Falló una vez en una corrida completa de `xcodebuild test -scheme CoreNetworking-Package`
+(`refreshCount.value == 1` con más de un refresh disparado) y pasó de forma consistente en
+3 corridas aisladas del mismo test y en una corrida completa posterior. Es un test de
+PRD-CN-06 (`RetrierTests.swift`, `TokenRefresher` — ninguno de los dos ficheros está en la
+lista de PRD-X-02) que parece sensible a la presión de scheduler cuando corre junto a otras
+24 suites bajo `xcodebuild`; no reproducido bajo `swift test --parallel` en 3 corridas.
+Queda documentado para el propietario: si vuelve a aparecer, revisar la sincronización de
+`TokenRefresher.refreshToken()` (`CoreNetworking/Sources/CoreNetworking/Auth/
+TokenRefresher.swift`) bajo carga real, no solo bajo `Task` cooperativo de un solo proceso.
