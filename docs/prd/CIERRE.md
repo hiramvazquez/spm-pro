@@ -464,4 +464,6 @@ Ambos paquetes publicados por `git subtree split` desde `main` del monorepo, con
 
 Lección para futuras publicaciones: el CI de los repos usa Xcode 26.3 (`latest-stable` en `macos-15`), más antiguo que el local (26.6); el compilador y DocC de esa versión son más estrictos en `sending` y en nombres de parámetros. Validar siempre en rama antes de avanzar `main`.
 
-Pendiente para el tag `1.0.0` (sin cambios): verificación manual AF-12/AF-13; `git tag -a 1.0.0` en `main` de cada repo (equivale a la rama split ya empujada) y push del tag; consumidor por URL + `from: "1.0.0"`; después, cambiar `LoginApp`/`CatalogApp` de `branch: "main"` a `from: "1.0.0"`.
+**Tags `1.0.0` publicados** (2026-09-02): CoreNetworking sobre `1991ced`, AppFoundation sobre `895dfdd`, ambos tras CI verde en `main`. Consumidor de prueba por URL + `from: "1.0.0"` con los productos `AppFoundation` y `CoreNetworking`: resuelve ambos a 1.0.0 y compila; los tres plugins de AppFoundation aparecen en `swift package plugin --list`. `LoginApp`/`CatalogApp` y el script del generador pasan de `branch: "main"` a `from: "1.0.0"`.
+
+Pendiente del propietario: la verificación manual AF-12/AF-13 en simulador (no bloquea el uso; si aparece algo, será 1.0.1) y ejecutar `archinit` + `generate-feature` en la primera app real.
