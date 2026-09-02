@@ -242,6 +242,53 @@ PRD: [PRD-AF-01](PRD/PRD-AF-01.md).
 
 PRD: [PRD-CN-04](PRD/PRD-CN-04.md).
 
+<!-- PRD-CN-06 -->
+
+#### Breaking
+
+- `RequestInterceptor` se reescribe alrededor de `RequestContext` (`id`,
+  `request`, `attempt` — 1-based —, `startedAt: ContinuousClock.Instant`):
+  `willSend(_:context:)` pasa a `async throws(APIError)` (puede ABORTAR el
+  request antes de que el transporte lo vea); `didReceive` recibe
+  `HTTPURLResponse` (no `URLResponse`, sin castear) y `context`; `didFail`
+  pasa a `didFail(_ error: APIError, context:)` (ya no recibe `request:`, va
+  en `context.request`).
+- `APIService.init` (ambos: el designado con `transport:` y el `convenience`
+  con `sslPinning:`) gana `retriers: [any RequestRetrier] = []`.
+
+#### Added
+
+- `RequestRetrier` (`Retry/RequestRetrier.swift`): `func retry(_ error:
+  APIError, context: RequestContext) async -> RetryDecision`
+  (`.doNotRetry` / `.retry` / `.retryAfter(Duration)`), consultado ANTES que
+  `RetryPolicy` en cada intento fallido — el primero que no responda
+  `.doNotRetry` decide; `RetryDecision.retryAfter` manda sobre `RetryPolicy`
+  Y sobre un `Retry-After` del servidor. `RetryPolicy.maxAttempts` acota
+  ambos caminos (CN-05).
+- `Auth/TokenRefresher.swift`: `TokenRefreshing` (protocolo) y `actor
+  TokenRefresher` — deduplica refreshes concurrentes (N requests con 401 a
+  la vez disparan UN único refresh; los demás esperan su resultado, tanto en
+  éxito como en fallo). `BearerTokenInterceptor(tokenProvider:)` añade
+  `Authorization: Bearer <token>` leyendo el token fresco en cada
+  `willSend`. `TokenRefreshRetrier(refresher:)` refresca y reintenta un 401
+  solo en el primer intento (`context.attempt == 1`); si el refresh falla,
+  `.doNotRetry` — el 401 original llega al consumidor sin requests extra
+  (CN-05).
+- `CoreNetworkingTestSupport`: `RecordingInterceptor`, un
+  `RequestInterceptor` público que graba `willSend`/`didReceive`/`didFail`
+  (con su `RequestContext`) en orden, para probar interceptores y retriers
+  propios sin un spy a medida; opcionalmente lanza un error fijo desde
+  `willSend` para probar caminos de aborto.
+
+#### Removed
+
+- La nota histórica sobre `PerformanceInterceptor` en `RequestInterceptor.swift`
+  desaparece: `context.id`/`context.attempt`/`context.startedAt` son
+  exactamente la identidad de request que le faltaba para medir sin
+  confundir requests concurrentes a la misma URL (CN-06).
+
+PRD: [PRD-CN-06](PRD/PRD-CN-06.md).
+
 <!-- PRD-CN-03 -->
 
 #### Breaking
