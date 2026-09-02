@@ -168,6 +168,80 @@ PRD: [PRD-AF-01](PRD/PRD-AF-01.md).
 
 ### CoreNetworking
 
+<!-- PRD-CN-04 -->
+
+#### Breaking
+
+- **Crítico (CN-01)** — cancelar el challenge de server-trust producía
+  `URLError(.cancelled)`: un fallo de pinning llegaba a la app indistinguible
+  de que el usuario hubiese cancelado, y `if case .cancelled = error { return
+  }` se lo tragaba en silencio. La corrección cambia el punto de decisión:
+  `PinningSessionDelegate` (delegate único, a nivel de SESIÓN) desaparece;
+  `TaskDelegate` (nuevo, `Transport/TaskDelegate.swift`) decide el pinning
+  POR TAREA — una instancia nueva por cada `execute`/`upload`/`data`/
+  `download` — y recuerda si fue ella quien canceló el challenge.
+  `URLSessionTransport` traduce ese `URLError(.cancelled)` a `PinningFailure`
+  (interno del transporte, nunca visible fuera del paquete) cuando el flag
+  está activo; `APIService` lo mapea a `APIError(code: .untrustedServer,
+  category: .untrustedServer)`. Una cancelación real del `Task` sigue siendo
+  `.cancelled` — nunca se confunde con la anterior.
+- `SessionDelegates.swift` desaparece (`PinningSessionDelegate` y
+  `UploadProgressDelegate`, esta última ya sin uso: el body de upload viajaba
+  en `httpBody`, nunca por `session.upload(for:from:)`). `URLSessionTransport`
+  crea su `URLSession` con `delegate: nil` — cada llamada pasa su propio
+  `TaskDelegate` a `session.data(for:delegate:)` / `session.upload(for:from:
+  delegate:)` / `session.download(for:delegate:)`.
+- **`APIServiceProtocol`**: `download(request:progress:) -> Data` (CN-07: iteraba
+  `AsyncBytes` byte a byte — una llamada async POR BYTE, órdenes de magnitud más
+  lento que recibir por chunks, y el nombre prometía "descarga" pero devolvía
+  todo en memoria) se sustituye por DOS métodos sin ambigüedad de nombre:
+  - `data(for:progress:) -> Data` — mismo comportamiento que el `download`
+    anterior (en memoria), implementado por chunks vía `session.data(for:)`,
+    ya sin el bucle byte a byte.
+  - `download(_:to:progress:)` — streaming directo a disco vía
+    `session.download(for:)`; nunca mantiene el body completo en memoria.
+    Comparte transporte, interceptores y mapeo de errores con el resto, pero
+    es un único intento (sin retry: reintentar una descarga a disco a medias
+    exigiría truncar/reanudar el fichero, fuera de alcance). Dado que el
+    fichero de destino puede quedar con contenido a medio escribir de un
+    intento fallido, `download(to:)` limpia `destination` en cualquier
+    camino de error (status non-2xx, pinning, cancelación) antes de lanzar
+    `APIError`.
+  - `HTTPTransport` gana `download(_:to:destination:progress:)` con el mismo
+    contrato. `URLSessionTransport.download` mueve el fichero temporal a
+    `destination` inmediatamente después de que `session.download(for:)`
+    regrese — verificado empíricamente que la API async de conveniencia NO
+    invoca `URLSessionDownloadDelegate.didFinishDownloadingTo` en el SDK que
+    este paquete usa, así que el movimiento no puede depender de ese
+    callback (`TaskDelegate` lo implementa igualmente, por si alguna
+    plataforma sí lo entrega).
+
+#### Added
+
+- `PinningFailure` (`Transport/TaskDelegate.swift`), `public`: la señal
+  interna que distingue "pinning rechazó el certificado" de "el llamador
+  canceló". `CoreNetworkingTestSupport.InMemoryTransport.Outcome
+  .pinningFailure(host:)` la expone en tests sin necesitar un handshake TLS
+  real.
+- `PinningPipelineTests.swift`: el test de extremo a extremo que la auditoría
+  señaló como hueco (CN-01) — un `PinningFailure` del transporte produce
+  `APIError.code == .untrustedServer` / `category == .untrustedServer`; un
+  `URLError(.cancelled)` sin el flag produce `.cancelled`. Cubre `execute`,
+  `data(for:)` y `download(to:)`, y verifica directamente
+  `URLSessionTransport.remapPinningCancellation`, la función pura que usan
+  `send`/`download` en su `catch`.
+- `PinningDelegateTests` migrada a `TaskDelegate`: las mismas 6 decisiones
+  (ahora a nivel de tarea, con `URLSessionTask` en la firma del challenge) más
+  un test nuevo — tras `.failed`, `pinningFailed == true`.
+- `TransferTests`: `data(for:)` de 5 MB con límite de tiempo generoso (regresión
+  contra el bucle byte a byte de CN-07); `download(to:)` verificado contra un
+  servidor HTTP real en loopback (socket POSIX, no `URLProtocol` — un
+  `URLProtocol` a medida no dispara la maquinaria de descarga a fichero real,
+  verificado empíricamente) para probar que el fichero llega a `destination`
+  sin temporales huérfanos y que sustituye un fichero existente.
+
+PRD: [PRD-CN-04](PRD/PRD-CN-04.md).
+
 <!-- PRD-CN-03 -->
 
 #### Breaking
