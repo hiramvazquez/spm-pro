@@ -25,7 +25,7 @@ Por URL y tag (los dos paquetes comparten repo y tag; ver [CHANGELOG.md](CHANGEL
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/hiram0816/spm-pro.git", from: "0.1.4")
+    .package(url: "https://github.com/hiram0816/spm-pro.git", from: "1.0.0")
 ],
 targets: [
     .target(
@@ -82,9 +82,11 @@ para cada paquete en un runner macOS, detectando el simulador disponible.
 ## Estado y hoja de ruta
 
 - [`AUDITORIA-2026-09-01.md`](AUDITORIA-2026-09-01.md): auditoría técnica de ambos
-  paquetes con 45 hallazgos (IDs `CN-xx` / `AF-xx`).
+  paquetes con 43 hallazgos (IDs `CN-01`…`CN-22` / `AF-01`…`AF-21`).
 - [`PRD/`](PRD/README.md): los PRD de remediación, agrupados en oleadas, con la
   Definition of Done común y el orden de merge.
+- [`PRD/CIERRE.md`](PRD/CIERRE.md): verificación cruzada de los 43 hallazgos contra el
+  código de cierre de 1.0 (estado, evidencia y PRD/commit que resolvió cada uno).
 - [`CHANGELOG.md`](CHANGELOG.md): cambios por versión y por paquete.
 
 ## Licencia
