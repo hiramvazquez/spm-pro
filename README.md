@@ -29,8 +29,8 @@ Cada paquete se instala por separado, apuntando a su propio repositorio publicad
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/hiram0816/AppFoundation.git", from: "1.0.0"),
-    .package(url: "https://github.com/hiram0816/CoreNetworking.git", from: "1.0.0")
+    .package(url: "https://github.com/hiramvazquez/AppFoundation.git", from: "1.0.0"),
+    .package(url: "https://github.com/hiramvazquez/CoreNetworking.git", from: "1.0.0")
 ],
 targets: [
     .target(
