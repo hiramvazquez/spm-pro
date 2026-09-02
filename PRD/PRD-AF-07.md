@@ -9,6 +9,7 @@
 - Cuatro variantes de app deben quedar ejemplificadas: solo API, solo local, API + local, sin datos.
 
 ## Entregables
+0. **Mejoras M1-M7 de `ARQUITECTURA-KIT-2026-09-02.md` §8** aplicadas en el kit y en los cuatro ejemplos: `DomainError` en AppFoundation; errores de dominio por feature mapeados en la Logic; DTO→dominio en los Services; Logic sin `Router`; `XxxModule` como composition root y VMs construidos fuera de las capas; aislamiento por capa (Logic `nonisolated`, Store `actor`/`@ModelActor`, Service `struct Sendable`); `SessionStore` + logout global al 401 en `LoginApp`; cache-then-network con `cached()`/`refresh()` en `CatalogApp`.
 1. **AppFoundation**
    - `Architecture/Logic/Logic.swift`: `public protocol Logic: AnyObject {}` (marcador; doc: por qué existe: lint, generador, intención).
    - `Architecture/ViewModels/LogicViewModel.swift`: `open class LogicViewModel<L>: BaseViewModel { public let logic: L; public init(logic: L, errorPresenter:cancellationRecognizer:clock:) }`. Conforma `ScreenState`/`LoadableViewModel` por herencia; **no** conforma `ActionHandling` (lo hace cada subclase con su `Action`).
