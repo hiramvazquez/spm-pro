@@ -41,7 +41,7 @@ struct LoginService: LoginServicing, EndpointService {
 Todo lo que puede fallar es un `APIError` (typed throws) — el Service lo propaga tal cual,
 nunca lo interpreta. Es el **Logic** que llama al Service quien clasifica con `category`
 (`.offline`, `.unauthorized`, `.untrustedServer`, `.server`, …) y lo traduce a su propio
-`XxxError: DomainError` (AppFoundation, `ARQUITECTURA-KIT-2026-09-02.md` §8, M1) — el
+`XxxError: DomainError` (AppFoundation, `docs/ARQUITECTURA-KIT-2026-09-02.md` §8, M1) — el
 `ErrorPresenting` de la app nunca ve un `APIError`, solo `DomainError`s. Para leer el
 cuerpo de un error de servidor con TU propio envelope, usa `error.decodeBody(MiEnvelope.self)`
 desde el Logic — este paquete nunca interpreta el body, solo lo conserva.
@@ -66,5 +66,8 @@ desde el Logic — este paquete nunca interpreta el body, solo lo conserva.
 - No agregues un segundo `BaseRequest` genérico con parámetros para "ahorrar" tipos: un
   endpoint, un `BaseRequest`, un Service que lo llama.
 
-Ver también: `AppFoundation/AGENTS.md` (capas View/ViewModel/Logic) y
-`AppFoundation/Examples/LoginApp` (el Service de referencia, con sus tres niveles de test).
+Ver también: `AppFoundation/AGENTS.md` (capas View/ViewModel/Logic),
+`AppFoundation/Examples/LoginApp` (el Service de referencia, con sus tres niveles de test),
+`Examples/APIClientApp` (un consumidor mínimo, sin AppFoundation) y
+`Sources/CoreNetworking/Documentation.docc/` (Xcode: **Product ▸ Build Documentation**)
+para la referencia completa por pieza, con ejemplos que compilan (`Snippets/`).

@@ -16,11 +16,19 @@
 #   fricción. Solo macOS/`swift test`: ninguno expone un producto de app, así que no hay
 #   scheme de `xcodebuild test` que ejecutar. Sustituye al job único de
 #   `Examples/IntegrationExample` (movido con `git mv` a `AppFoundation/Examples/LoginApp`).
-# - `generator`: PRD-AF-08. `Scripts/verify-generator.sh` reproduce la verificación real del
-#   PRD en un paquete temporal FUERA del repo: las cuatro variantes de `generate-feature`
-#   compilan y sus tests pasan, `ArchitectureLint` (build-tool plugin) pasa limpio, una
-#   violación de R1 hace fallar el build con `[ArchLint.R1]`, y `swift package archlint`
-#   pasa limpio sobre los cuatro ejemplos de AF-07 (son la referencia).
+# - `generator`: `Scripts/verify-generator.sh` reproduce la verificación real del
+#   generador/linter en un paquete temporal FUERA del repo: las cuatro variantes de
+#   `generate-feature` compilan y sus tests pasan, `ArchitectureLint` (build-tool plugin)
+#   pasa limpio, una violación de R1 hace fallar el build con `[ArchLint.R1]`, y
+#   `swift package archlint` pasa limpio sobre los cuatro ejemplos (son la referencia).
+# - `corenetworking-example`: `CoreNetworking/Examples/APIClientApp`, el consumidor mínimo
+#   sin AppFoundation — la prueba de que CoreNetworking se adopta solo.
+# - `docs`: `xcodebuild docbuild` para los dos schemes (`AppFoundation`,
+#   `CoreNetworking-Package`) — falla si DocC no puede construir el catálogo
+#   (`Documentation.docc/`), incluidos enlaces `<doc:...>`/`@Snippet` rotos.
+# - `snippets`: `swift build` en cada paquete compila `Snippets/` junto con Sources/Tests
+#   (SwiftPM los descubre como productos ejecutables automáticamente) — job explícito y
+#   rápido para que un snippet roto falle solo, sin esperar a la matriz completa de `test`.
 name: CI
 
 on:
@@ -61,8 +69,8 @@ jobs:
       - name: swift format lint --strict
         run: |
           swift format lint --strict --recursive \
-            AppFoundation/Sources AppFoundation/Tests AppFoundation/Examples AppFoundation/Plugins \
-            CoreNetworking/Sources CoreNetworking/Tests
+            AppFoundation/Sources AppFoundation/Tests AppFoundation/Examples AppFoundation/Plugins AppFoundation/Snippets \
+            CoreNetworking/Sources CoreNetworking/Tests CoreNetworking/Examples CoreNetworking/Snippets
 
   test:
     name: ${{ matrix.package }}
@@ -189,7 +197,7 @@ jobs:
         run: swift test --parallel
 
   generator:
-    name: PRD-AF-08 · generate-feature + ArchitectureLint
+    name: generate-feature + ArchitectureLint
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -206,3 +214,85 @@ jobs:
 
       - name: Scripts/verify-generator.sh
         run: Scripts/verify-generator.sh
+
+  corenetworking-example:
+    name: Examples/APIClientApp
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: CoreNetworking/Examples/APIClientApp
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Seleccionar Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Versiones
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Cache de .build
+        uses: actions/cache@v4
+        with:
+          path: CoreNetworking/Examples/APIClientApp/.build
+          key: spm-APIClientApp-${{ runner.os }}-${{ hashFiles('CoreNetworking/Examples/APIClientApp/Package.swift', 'CoreNetworking/Package.swift') }}
+          restore-keys: |
+            spm-APIClientApp-${{ runner.os }}-
+
+      - name: Build estricto (0 warnings)
+        run: SWIFT_STRICT_WARNINGS=1 swift build --build-tests
+
+      - name: swift test (macOS)
+        run: swift test --parallel
+
+  docs:
+    name: docbuild (${{ matrix.scheme }})
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: AppFoundation
+            scheme: AppFoundation
+          - package: CoreNetworking
+            scheme: CoreNetworking-Package
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Seleccionar Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: xcodebuild docbuild
+        run: |
+          xcodebuild docbuild \
+            -scheme "${{ matrix.scheme }}" \
+            -destination 'generic/platform=iOS Simulator'
+
+  snippets:
+    name: Snippets/ (${{ matrix.package }})
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [AppFoundation, CoreNetworking]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Seleccionar Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: swift build (compila Sources/Tests y Snippets/)
+        run: swift build
