@@ -10,6 +10,49 @@ X-02 cierra la versión.
 
 ## [Unreleased]
 
+### AppFoundation
+
+<!-- PRD-AF-05 -->
+#### Breaking
+
+- `ScreenContainer.init(viewModel: BaseViewModel, ...)` se elimina. `ScreenContainer` pasa a
+  `ScreenContainer<State: ScreenViewModel, Content: View>` (`ScreenViewModel` =
+  `ScreenState & ActionHandling`, ambos protocolos nuevos): ya no depende de la clase
+  concreta `BaseViewModel`, solo del contrato mínimo. El nuevo init designado es
+  `ScreenContainer(_ state:chrome:backgroundColor:content:)`, con `content` recibiendo un
+  `ActionSender<State.Action>` en vez de nada — la vista ya no puede llamar métodos del view
+  model directamente, solo `send(.load)`. Los init de conveniencia (`title:`, `onBack:`,
+  `searchText:`) migran del mismo modo (`viewModel:` → `_ state:`, `content` recibe el
+  sender). Migrar `ScreenContainer(viewModel: vm) { ... }` a
+  `ScreenContainer(vm) { send in ... }`, y hacer que `vm` conforme `ActionHandling` (un
+  `enum Action`, `func handle(_ action: Action)`) para poder pasarlo (decisión del
+  propietario, 2026-09-02).
+
+#### Added
+
+- `ScreenState` (`Architecture/State/ScreenState.swift`): el contrato mínimo que
+  `ScreenContainer` observa (`phase`/`activity` de solo lectura, `alert`/`banner`
+  `{ get set }`). `BaseViewModel` conforma (`extension BaseViewModel: ScreenState {}`) sin
+  ganar ningún método nuevo — la obligación de `handle(_:)` la impone `ScreenContainer`, no
+  `BaseViewModel`.
+- `ActionHandling` (`Architecture/Actions/ActionHandling.swift`): protocolo con
+  `associatedtype Action: Sendable` y `func handle(_ action: Action)` — el único punto de
+  entrada de las acciones de usuario de una pantalla, testeable con `vm.handle(.load)` sin
+  exponer métodos `private`.
+- `ActionSender<Action>`: lo único que el closure de contenido de `ScreenContainer` recibe
+  para actuar sobre la pantalla (`send(.load)`/`sender(.load)`); se construye vía
+  `ActionHandling.sender`, capturando el view model **débilmente** (`[weak self]`) — un
+  `ActionSender` retenido no mantiene vivo al view model.
+- `ScreenViewModel` — `typealias ScreenViewModel = ScreenState & ActionHandling`.
+- `ScreenContainer(observing:chrome:backgroundColor:content:)`: init para pantallas de solo
+  lectura (`ScreenState` sin `ActionHandling`) — sin `ActionSender` en `content`.
+- `.screen(_:chrome:)`: modifier equivalente a `ScreenContainer(observing:)` para envolver
+  una vista existente con la cáscara de una pantalla de solo lectura.
+- `PhaseView.init(observing:backgroundColor:content:)`: variante de `PhaseView` que observa
+  un `some ScreenState` directamente, sin `Binding<ViewPhase>`.
+
+PRD: [PRD-AF-05](PRD/PRD-AF-05.md).
+
 ## [1.0.0] - 2026-09-02
 
 Primera versión estable. Cierra la auditoría técnica de 2026-09-01
