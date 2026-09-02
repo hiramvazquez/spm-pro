@@ -37,6 +37,8 @@ Objetivo global: dejar AppFoundation y CoreNetworking en **10/10** dentro del al
 | 3 | CN-04, CN-06 | CN-03 y CN-05 mergeados. Merge CN-04 primero; CN-06 se rebasa |
 | 4 | X-02 | todo lo anterior mergeado |
 | 5 | AF-05 | X-02 mergeado |
+| 6 | CN-07, AF-06 | AF-05 mergeado (paquetes distintos, sin solape) |
+| 7 | X-03 | CN-07 y AF-06 mergeados |
 
 Conflictos esperados y cómo evitarlos:
 - `README.md` de cada paquete: cada PRD edita **solo su sección**; X-02 hace la pasada final de coherencia.
@@ -72,3 +74,6 @@ oleada parte de `main` actualizado.
 | [X-01](PRD-X-01.md) | Proceso: CI, formato, licencia, changelog, gate estricto en CoreNetworking | — | ambos |
 | [X-02](PRD-X-02.md) | Cierre 1.0: coherencia de docs, verificación cruzada, release | AF-07 y docs | ambos |
 | [AF-05](PRD-AF-05.md) | Contrato pantalla ↔ cáscara: `ScreenState`, `ActionHandling`, `ActionSender` | decisión del propietario | AppFoundation |
+| [CN-07](PRD-CN-07.md) | Pulido tras el doble check | DC-CN-1…7 | CoreNetworking |
+| [AF-06](PRD-AF-06.md) | Pulido tras el doble check | DC-AF-2…5 | AppFoundation |
+| [X-03](PRD-X-03.md) | Documentación de integración y cierre 1.0.0 | DC-CN-8, DC-AF-6/7 | ambos |
