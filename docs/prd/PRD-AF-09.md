@@ -114,3 +114,22 @@ Informe completo con salidas reales: `AppStarter/docs/INFORME-CALIDAD.md` (commi
 Conclusión para el kit: la configuración de `AppStarterKit/.swiftlint.yml` pasa a
 `Templates/swiftlint.yml` sin cambios; los umbrales de tamaño/complejidad no se tensaron con este
 código y quedan en los valores propuestos.
+
+## Ejecución en AppFoundation (2026-09-03, versión 1.1.0)
+
+| Entregable | Estado | Evidencia |
+|---|---|---|
+| `Templates/swiftlint.yml` | Hecho | = `.swiftlint.yml` de AppStarterKit + `excluded` en dos formas (relativa y glob) y `empty_count` como aviso |
+| `archinit` copia `.swiftlint.yml` e imprime los pasos manuales | Hecho | `Plugins/ArchInit/plugin.swift` |
+| Generador y ejemplos pasan `swiftlint --strict` | Hecho | `verify-generator.sh` lo comprueba (cazó el ternario con `Void` de `Templates/ViewModel.swift.txt`, corregido); 4 ejemplos y `Snippets` limpios; job `quality` en CI |
+| Docs | Hecho | `CodeQuality.md` (+ índice DocC y `Lint.md`), README, `AGENTS.md` (Qué NO hacer, Definition of Done), `feature.skill.md` |
+| Extra | Hecho | `SpyRecorder.isEmpty`; ejemplos y snippets corregidos (`isEmpty`, `#require`/`guard let`, `Data(_.utf8)`, sin `print`) |
+
+Aprendido al ejecutarlo: los `excluded` del `.yml` son relativos al fichero de configuración,
+no al directorio lintado; con `--config` desde otro sitio hay que lintar `Sources`/`Tests`
+explícitos. Y `try #require(UserDefaults(suiteName:))` no puede pasarse a un `actor` bajo
+región-isolation (el valor sale del macro «posiblemente compartido»): `guard let` sí.
+
+Verificación sobre `main`: lint estricto limpio · build estricto · 274 tests · 4 ejemplos ·
+snippets sincronizados · `verify-generator.sh` con SwiftLint en verde · build iOS · docbuild
+iOS y macOS sin warnings. Publicación: `main` de AppFoundation `ddef77d`, tag `1.1.0` tras CI.

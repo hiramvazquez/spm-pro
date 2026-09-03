@@ -487,3 +487,13 @@ Sin roturas de API. CoreNetworking solo recibe la sección «App de referencia»
 | A7 ninguna acción se pierde en silencio | Resuelto | `AppFoundationDiagnostics` (`assertOnDroppedAction`, `droppedActionHandler`), `os_log` en `ActionSender`/`performLoad`/`performActivity`; regla R12 (aviso) |
 
 Verificación completa en `PRD-X-05.md` («Ejecución»). Publicación: `subtree split` → `main` de cada repo, CI verde, tag `1.0.1` en AppFoundation.
+
+---
+
+# Release 1.1.0 — AppFoundation (2026-09-03, PRD-AF-09)
+
+Calidad de código sin linter propio: `Templates/swiftlint.yml` curado (calibrado en AppStarter,
+`docs/INFORME-CALIDAD.md`), instalado por `archinit`; generador, ejemplos y snippets lo pasan en
+modo estricto y CI lo vigila (job `quality`). Artículo `CodeQuality`, `AGENTS.md` con «Qué NO
+hacer» y Definition of Done. Detalle y evidencia en `PRD-AF-09.md` («Ejecución»). 1.0.2 (docs,
+Definition of Done) quedó publicada el mismo día.
