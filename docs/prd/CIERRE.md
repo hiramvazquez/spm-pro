@@ -467,3 +467,23 @@ Lección para futuras publicaciones: el CI de los repos usa Xcode 26.3 (`latest-
 **Tags `1.0.0` publicados** (2026-09-02): CoreNetworking sobre `1991ced`, AppFoundation sobre `895dfdd`, ambos tras CI verde en `main`. Consumidor de prueba por URL + `from: "1.0.0"` con los productos `AppFoundation` y `CoreNetworking`: resuelve ambos a 1.0.0 y compila; los tres plugins de AppFoundation aparecen en `swift package plugin --list`. `LoginApp`/`CatalogApp` y el script del generador pasan de `branch: "main"` a `from: "1.0.0"`.
 
 Pendiente del propietario: la verificación manual AF-12/AF-13 en simulador (no bloquea el uso; si aparece algo, será 1.0.1) y ejecutar `archinit` + `generate-feature` en la primera app real.
+
+---
+
+# Release 1.0.1 — AppFoundation (2026-09-03, PRD-X-05)
+
+Origen: las fricciones de la app de referencia [AppStarter](https://github.com/hiramvazquez/AppStarter).
+Sin roturas de API. CoreNetworking solo recibe la sección «App de referencia» en su README
+(sin tag nuevo; queda en `[Unreleased]`).
+
+| Acción | Estado | Evidencia |
+|---|---|---|
+| A1 `archlint` ignora siempre `.build`/`.swiftpm`/`DerivedData`/VCS | Resuelto | `alwaysIgnore` en `Config.swift`, 28 tests; AppStarterKit sin `--path` → 0/0 en 37 ficheros |
+| A2 actores con dependencias no-Sendable | Resuelto | `AGENTS.md`, `Architecture.md`, `docs/repros/actor-inline-conformance.md` con el error exacto; `UserDefaultsNotesSettingsStore` en NotesApp con tests |
+| A3 la View retiene el ViewModel con `@State` | Resuelto | plantilla, 4 ejemplos y snippets; `onAppear` ausente; `ViewModelOwnershipTests` |
+| A4 `--no-service/--no-store/--service-from/--store-from` | Resuelto | `verify-generator.sh` cubre `Detail --api --service-from Products` |
+| A5 «Desde un proyecto Xcode» | Resuelto | `GettingStarted.md` (9 puntos) + resumen en README |
+| A6 enlace a AppStarter | Resuelto | ambos README y `AGENTS.md` |
+| A7 ninguna acción se pierde en silencio | Resuelto | `AppFoundationDiagnostics` (`assertOnDroppedAction`, `droppedActionHandler`), `os_log` en `ActionSender`/`performLoad`/`performActivity`; regla R12 (aviso) |
+
+Verificación completa en `PRD-X-05.md` («Ejecución»). Publicación: `subtree split` → `main` de cada repo, CI verde, tag `1.0.1` en AppFoundation.

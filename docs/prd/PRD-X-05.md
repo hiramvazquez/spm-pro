@@ -25,9 +25,27 @@ Origen: `AppStarter/docs/INFORME-INTEGRACION.md` y `docs/ISSUES.md` (2026-09-03)
 - **A7 · Ninguna acción se pierde en silencio**: en `ScreenState.sender` (`ActionSender`) y en los `guard let self else { throw CancellationError() }` de `performLoad`/`performActivity`, emitir en `DEBUG` un `os_log` de nivel `error` («acción X descartada: el ViewModel ya no existe») con `assertionFailure` opcional. En AppStarter esa línea habría convertido horas de diagnóstico en un minuto. Valorar una regla R12 del linter que marque `let viewModel:` en un `*View.swift`.
 
 ## Criterios de aceptación
-- [ ] En AppStarterKit (clon limpio, dependencias resueltas), `swift package archlint` sin `--path` → 0 errores.
-- [ ] Ejemplo con Store sobre `UserDefaults` compila y su test pasa; repro documentado.
-- [ ] `grep -rn "onAppear" AppFoundation/Templates AppFoundation/Examples/*/Sources` vacío; verificación de A3 documentada (reproducido o no, con el procedimiento).
-- [ ] `generate-feature Detail --api --service-from Products` genera Logic que compila contra `ProductsServicing`; `Scripts/verify-generator.sh` lo cubre.
-- [ ] `GettingStarted.md` tiene la sección «Desde un proyecto Xcode»; READMEs enlazan a AppStarter.
-- [ ] Verificación completa del paquete (build estricto, tests, lint, iOS, docbuild limpio) y tag `1.0.1` tras CI verde.
+- [x] En AppStarterKit (clon limpio, dependencias resueltas), `swift package archlint` sin `--path` → 0 errores.
+- [x] Ejemplo con Store sobre `UserDefaults` compila y su test pasa; repro documentado.
+- [x] `grep -rn "onAppear" AppFoundation/Templates AppFoundation/Examples/*/Sources` vacío; verificación de A3 documentada (reproducido o no, con el procedimiento).
+- [x] `generate-feature Detail --api --service-from Products` genera Logic que compila contra `ProductsServicing`; `Scripts/verify-generator.sh` lo cubre.
+- [x] `GettingStarted.md` tiene la sección «Desde un proyecto Xcode»; READMEs enlazan a AppStarter.
+- [x] Verificación completa del paquete (build estricto, tests, lint, iOS, docbuild limpio) y tag `1.0.1` tras CI verde.
+
+## Ejecución (2026-09-03)
+
+Tres agentes en paralelo (A: A1+A4+R12 · B: A3+A7 · C: A2+A5+A6 y prosa), integrados en `main` sin conflictos.
+Evidencia sobre `main` integrado, medida por el orquestador:
+
+| Comprobación | Resultado |
+|---|---|
+| `swift format lint --strict` (Sources, Tests, Examples, Plugins, Snippets) | limpio |
+| `SWIFT_STRICT_WARNINGS=1 swift build --build-tests` | Build complete |
+| `swift test --parallel` | 274 tests, 35 suites, 0 fallos |
+| Ejemplos (`swift test`) | Counter 6 · Notes 17 · Login 12 · Catalog 15, todos en verde |
+| `Scripts/check-doc-snippets.sh` | 16 bloques OK |
+| `Scripts/verify-generator.sh` (4 variantes + `Detail --api --service-from Products`) | Todo verde |
+| `xcodebuild build` iOS Simulator | sin errores |
+| `xcodebuild docbuild` iOS Simulator y macOS, DerivedData limpio | 0 warnings, SUCCEEDED en ambos |
+| `archlint` (binario 1.0.1) sobre AppStarterKit sin `--path`, con `.build` presente | 0 errores, 0 avisos, 37 ficheros |
+| `grep -rn onAppear Templates Examples/*/Sources` | vacío |
