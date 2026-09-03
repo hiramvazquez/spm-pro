@@ -41,6 +41,9 @@ Objetivo global: dejar AppFoundation y CoreNetworking en **10/10** dentro del al
 | 8 | AF-07 | oleada 6 mergeada |
 | 9 | AF-08 | AF-07 mergeado |
 | 10 | X-03 (v2) | AF-07 y AF-08 mergeados |
+| 11 | X-04 | X-03 mergeado |
+| 12 | APP-01 (repo AppStarter) | tags 1.0.0 publicados |
+| 13 | X-05 (AppFoundation 1.0.1) | APP-01 terminado |
 
 Conflictos esperados y cómo evitarlos:
 - `README.md` de cada paquete: cada PRD edita **solo su sección**; X-02 hace la pasada final de coherencia.
@@ -81,3 +84,6 @@ oleada parte de `main` actualizado.
 | [AF-07](PRD-AF-07.md) | Kit de arquitectura: `Logic`, `LogicViewModel`, `EndpointService`, test support, 4 ejemplos | [`../ARQUITECTURA-KIT-2026-09-02.md`](../ARQUITECTURA-KIT-2026-09-02.md) | ambos |
 | [AF-08](PRD-AF-08.md) | Plugins: generador `generate-feature`, linter `ArchitectureLint`, `archinit` | ídem | AppFoundation |
 | [X-03](PRD-X-03.md) | (v2) Documentación dentro de cada SPM (DocC + Snippets) y cierre 1.0.0 | DC-CN-8, DC-AF-6/7 | ambos |
+| [X-04](PRD-X-04.md) | Snippets DocC en línea verificados por CI | doble check final | ambos |
+| [APP-01](PRD-APP-01.md) | AppStarter: app real sobre DummyJSON con los paquetes 1.0.0 | — | repo AppStarter |
+| [X-05](PRD-X-05.md) | AppFoundation 1.0.1 a partir de las fricciones de AppStarter | INFORME-INTEGRACION | AppFoundation |
