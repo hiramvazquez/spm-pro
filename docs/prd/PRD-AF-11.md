@@ -29,3 +29,12 @@
 - [ ] `verify-multi.sh` cubre: arranque sin `--disable-sandbox` a mano (el script lo pone), `AppRoute` en Domain con navegación cruzada, `Networking` generado y una feature `--api` que lo usa, `--service-from` en multi con tests en verde, y una inserción tras `swift format format -i` que compila.
 - [ ] AppStarter (rama `multi`) actualizado a 1.2.1: R3 activada, `AppRoute` donde lo deja el kit, sin workarounds propios.
 - [ ] Verificación completa del paquete y tag `1.2.1` tras CI verde.
+
+## Ejecución
+
+- **A0 publicada como 1.2.1** (2026-09-04, `main` de AppFoundation `1482cb9`): `@Observable` en
+  plantilla, ejemplos, snippets, artículos, README y `AGENTS.md`; regla R15 (error) con fixture y
+  tests; `ObservationInheritanceTests` mide el fallo y la corrección con `withObservationTracking`.
+  Verificación completa en verde (336 tests, generador, `verify-multi`, DocC sin warnings).
+- **A1–A7 pendientes** → siguiente versión (1.3.0), junto con lo que salga de las Fases 2 y 3 de
+  PRD-APP-02.
