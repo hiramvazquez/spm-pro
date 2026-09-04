@@ -13,7 +13,13 @@
 
 | 0 | **`@Observable` no se hereda**: `BaseViewModel` es `@Observable`, pero el macro solo instrumenta las propiedades declaradas EN esa clase. Los ViewModels generados (`Templates/ViewModel.swift.txt`, los ejemplos, las docs) NO llevan `@Observable`, así que sus propiedades propias (`items`, `results`…) no se observan: la vista solo se refresca cuando cambia `phase`/`activity` de la base, por coincidencia. Confirmado en AppStarter con un contador de renders (`INFORME-MULTI.md` §11) | **Bug del kit, grave y silencioso** | A0 |
 
+| 8 | **`deinit` aislado sintetizado + shim de back-deploy**: en iOS 26.2 (CI, Xcode 26.3) dos `deinit` aislados anidados (ViewModel → `Coordinator`) abortan con double free en `swift_task_deinitOnExecutorMainActorBackDeploy`. Toda clase `@MainActor` sin `deinit` explícito lo sufre | **Bug grave** (posible crash en producción en iOS < runtime del toolchain) | A8 (publicada como 1.2.2) |
+
 ## Acciones (AppFoundation 1.2.1)
+
+- **A8 · `deinit {}` explícito en toda clase `@MainActor`** (1.2.2): kit, plantilla, ejemplos, snippets,
+  `AGENTS.md`; repro en `docs/repros/isolated-deinit-backdeploy.md`. Pendiente: regla R16 del linter
+  (clase `@MainActor` sin `deinit`) y reporte aguas arriba.
 
 - **A0 · `@Observable` en cada ViewModel** (prioridad máxima): `Templates/ViewModel.swift.txt`, los cuatro ejemplos, los snippets y los artículos (`ScreenStateAndViewModels`, `Architecture`, `GettingStarted`, `Theming`) declaran `@Observable final class XxxViewModel: LogicViewModel<…>`; `AGENTS.md` lo dice en el bullet del ViewModel («`@Observable` no se hereda: cada ViewModel lo declara»). Regla **R15** de `archlint` (error): una `class` cuyo nombre termina en `ViewModel` y declara propiedades almacenadas debe llevar `@Observable`. Test de regresión en AppFoundation: una subclase sin el macro no notifica cambios de su propiedad (usando `withObservationTracking`), y la misma con el macro sí. Verificar que aplicar el macro en subclase e hija no duplica registradores ni rompe `phase` (el informe dice que funciona; medirlo en test).
 
