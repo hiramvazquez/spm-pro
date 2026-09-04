@@ -116,10 +116,10 @@ esas cinco líneas y llama al plugin; se documenta como camino corto.
 - El generador edita `Package.swift` solo entre markers y solo en modo multi.
 
 ## Criterios de aceptación
-- [ ] `verify-multi.sh` en verde local y en CI (incluida la prueba negativa R13).
-- [ ] Un repo recién creado con el arranque documentado abre en Xcode, resuelve en segundos, compila la app y muestra las previews de una feature generada.
-- [ ] `archinit` sin `--multi` no cambia de comportamiento (verify-generator.sh sigue en verde).
-- [ ] Docs: `MultiModule.md`, `GettingStarted.md`, README, `AGENTS.md` generado con la tabla real.
+- [x] `verify-multi.sh` en verde local (incluida la prueba negativa R13); CI: job `multi`.
+- [x] Un repo recién creado con el arranque documentado compila la app para iOS Simulator (`verify-multi.sh`); previews: verificadas por el agente A a mano en el demo, no automatizables.
+- [x] `archinit` sin `--multi` no cambia de comportamiento (verify-generator.sh sigue en verde).
+- [x] Docs: `MultiModule.md`, `GettingStarted.md`, README, `AGENTS.md` generado con la tabla real.
 - [ ] Verificación completa del paquete y tag `1.2.0` tras CI verde. Después, migrar AppStarter al modo multi como prueba real (PRD-APP-02).
 
 ## Fuera de alcance
@@ -133,3 +133,21 @@ esas cinco líneas y llama al plugin; se documenta como camino corto.
 `AppFoundation/Templates/Multi/**`, `AppFoundation/Scripts/verify-multi.sh`, `AppFoundation/Tests/{ArchLintTests,GenerateFeatureSupportTests}/**`,
 `AppFoundation/Sources/AppFoundation/Documentation.docc/{MultiModule,GettingStarted,AppFoundation}.md`,
 `AppFoundation/{README,AGENTS,CHANGELOG}.md`, `AppFoundation/Templates/feature.skill.md`, `AppFoundation/.github/workflows/ci.yml`.
+
+## Ejecución (2026-09-04, AppFoundation 1.2.0)
+
+Tres agentes en paralelo (A: `archinit --multi` + composition root + xcodegen/CI · B: generador
+en modo multi · C: R13/R14) integrados en `main` sin conflictos; el orquestador hizo docs,
+`verify-multi.sh`, el job `multi` y la integración final. Lo que el test end-to-end cazó al
+integrar (ninguno de los tres lo podía ver por separado):
+
+| Hallazgo | Corrección |
+|---|---|
+| El `allowedImports` de `*Feature` que generaba A no incluía `SwiftData`: una feature `--local` violaba R13 | Política definitiva: `Domain` con lista cerrada; Kits, Adapters y features con listas de **prohibidos** (otras features, Kits, Adapters y cada SDK de `--adapter`). Los frameworks de Apple no dan falsos positivos |
+| B insertaba `ContratosModule()` en el composition root, pero el módulo generado tiene `init(baseURL:)` o `init(...) throws` según la variante | El generador lee el `public init` real del módulo generado y escribe la expresión correcta (`try MisCasosModule(baseURL: AppModule.apiBaseURL)`); `AppModule.makeModules() throws` y `apiBaseURL` en la plantilla |
+| La app no compilaba: faltaban `import <Name>Feature`, el destino en `RootView` y el producto en `project.yml` | Markers `// archinit:imports`, `// archinit:destinations` y `# archinit:products`; el generador los rellena (best-effort, con mensaje si falta el marker) |
+| La entrada YAML multilínea en `project.yml` quedaba mal indentada | Indentación relativa en la entrada; el editor desplaza el bloque por la del marker |
+| `AppModule` usaba `URL` sin `import Foundation` | Plantilla corregida |
+
+Verificación final sobre `main`: ver `CHANGELOG.md` 1.2.0 y la tabla de la sección
+«Verificación» de `CIERRE.md`.

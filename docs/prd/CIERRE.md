@@ -497,3 +497,14 @@ Calidad de código sin linter propio: `Templates/swiftlint.yml` curado (calibrad
 modo estricto y CI lo vigila (job `quality`). Artículo `CodeQuality`, `AGENTS.md` con «Qué NO
 hacer» y Definition of Done. Detalle y evidencia en `PRD-AF-09.md` («Ejecución»). 1.0.2 (docs,
 Definition of Done) quedó publicada el mismo día.
+
+---
+
+# Release 1.2.0 — AppFoundation (2026-09-04, PRD-AF-10)
+
+`archinit --multi`: app modular de tres niveles por targets (cáscara + `Packages/Platform` +
+`Packages/Features`) en un comando; `generate-feature` en modo multi da de alta targets,
+productos, módulo, ruta, imports, destino y producto de xcodegen por markers; R13 aísla los
+módulos (error) y R14 avisa de dependencias por rama; `Scripts/verify-multi.sh` (job `multi`)
+lo verifica de punta a punta con prueba negativa y build de la app en Xcode. Artículos
+`MultiModule` y `Theming`. Detalle y hallazgos de integración en `PRD-AF-10.md`.
