@@ -97,10 +97,31 @@ de código muerto «para enseñar»: la capacidad se usa de verdad.
 - README: índice del escaparate, cómo correr todo, y la sección «lo que hizo la IA» honesta.
 
 ## Criterios de aceptación
-- [ ] `swift test` en Platform y Features, `swift package archlint` en ambos (0 con R13), `swiftlint --strict` 0, `xcodebuild test` (unit + UI offline) verde local y en CI; `INTEGRATION=1` verde a mano.
-- [ ] Cada fila de las dos tablas señala fichero:línea reales, y `Scripts/check-showcase.sh` lo verifica.
-- [ ] Ninguna feature importa otra feature ni `CameraKit`/`AnalyticsAdapters` (R13 en CI).
-- [ ] Informe de migración y fricciones nuevas del kit registradas.
+- [x] `swift test` en Platform y Features (8 + 125), `archlint` 0 en ambos (R13 y R15), `swiftlint --strict` 0, `xcodebuild test` (11 unit + 24 snapshots + 10 XCUITests offline) verde dos veces seguidas en local; `INTEGRATION=1` 2/2 contra DummyJSON real. CI: ver «Ejecución».
+- [x] `Scripts/check-showcase.sh`: 50 citas verificadas, 0 fallos. Cinco capacidades marcadas «no cubiertas» con motivo en el README (`MockURLProtocol`, `RecordingInterceptor`, `InMemoryStore`, `L10n`/`.xcstrings`, `AppFoundationDiagnostics`).
+- [x] Ninguna feature importa otra feature ni `CameraKit`/`AnalyticsAdapters` (R13, probada en negativo).
+- [x] `docs/INFORME-MULTI.md` (migración, fricciones del kit → PRD-AF-11, verificación con Xcode) y README con «Lo que hizo la IA».
 
 ## Fuera de alcance
 Firebase real (el adapter de consola enseña el patrón); publicación en TestFlight; snapshot tests de todas las pantallas antiguas.
+
+## Ejecución (2026-09-04, `main` de AppStarter `3b4d3d8`)
+
+Tres fases con agentes (Sonnet) sobre la rama `multi`, integradas por el orquestador; ~55 commits.
+
+- **Fase 1** (migración): 11 commits. `AppRoute` a `Domain`, target `Networking` en Platform (el kit no
+  lo genera), R3 desactivada en Features por falso positivo cross-módulo. Fricciones → PRD-AF-11.
+- **Fase 2** (escaparate): Diagnostics (7 experimentos reales), Uploads (progreso, foto por `CameraKit`),
+  Gallery (`--module`, barra `.transparent` en `.overlay`, `Throttler`, `PhaseView`), Settings (tema de
+  marca conmutable, pinning con pins reales, `AppEnvironment`, analytics), alertas destructivas, sesión
+  con `Container(parent:)`, deep links, `SearchBarConfiguration` + `Debouncer`. Bugs reales encontrados
+  contra DummyJSON y corregidos: cookie que hacía pasar el 401, `waitsForConnectivity`, semáforo
+  bloqueante, `APIServiceProtocol` autorregistrado, **`@Observable` no heredado** (→ AppFoundation 1.2.1).
+- **Fase 3** (tests y docs): 3 XCUITests nuevos, 24 snapshot tests (`swift-snapshot-testing`),
+  `check-showcase.sh`, CI por paquete, README. El agente no pudo ejecutar `xcodebuild` (Xcode.app tenía el
+  proyecto abierto y retenía el lock); el orquestador lo ejecutó desde un clon en otra ruta y corrigió lo
+  que la primera ejecución real destapó (tabla en `INFORME-MULTI.md`): `Process` en iOS, stubs `struct`
+  para `Logic: AnyObject`, productos sin enlazar en `AppTests`, PNG de snapshots como recursos, el toggle de
+  tema recreando la pila, el `TabView` paginado frente al swipe-back, `XCUIApplication.open` relanzando la
+  app (→ deep links pendientes hasta login), `UserDefaults` persistente entre lanzamientos.
+- **Resultado**: `xcodebuild test` completo en verde dos veces seguidas; AppFoundation 1.2.1.

@@ -508,3 +508,13 @@ productos, módulo, ruta, imports, destino y producto de xcodegen por markers; R
 módulos (error) y R14 avisa de dependencias por rama; `Scripts/verify-multi.sh` (job `multi`)
 lo verifica de punta a punta con prueba negativa y build de la app en Xcode. Artículos
 `MultiModule` y `Theming`. Detalle y hallazgos de integración en `PRD-AF-10.md`.
+
+---
+
+# PRD-APP-02 — AppStarter en tres niveles y escaparate completo (2026-09-04)
+
+`main` de AppStarter `3b4d3d8`: cáscara + `Packages/Platform` (Domain, Networking, CameraKit,
+AnalyticsAdapters, PlatformTestSupport) + `Packages/Features` (11 targets). 133 tests de paquetes,
+11 unitarios de app, 24 snapshots, 10 XCUITests offline, 2 de integración real; `check-showcase.sh`
+50/50. Detalle, bugs encontrados y fricciones en `PRD-APP-02.md` («Ejecución») y en
+`AppStarter/docs/INFORME-MULTI.md`. Pendiente del kit: PRD-AF-11 A1–A7 (1.3.0).
