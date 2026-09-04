@@ -5,7 +5,18 @@
 # pasan sus tests, activa `ArchitectureLint` y comprueba que el build pasa limpio, introduce
 # una violación de R1/R7/R10 y comprueba que el build FALLA con el diagnóstico esperado, y
 # finalmente corre `swift package archlint` sobre los cuatro ejemplos de AF-07 (deben pasar
-# limpios: son la referencia).
+# limpios: son la referencia). También cubre PRD-X-05/A4 (`--service-from`) y, si `swiftlint`
+# está en el PATH, la configuración curada de PRD-AF-09.
+#
+# Este fichero existe por duplicado: aquí (monorepo) y en AppFoundation/Scripts/ (viaja en el
+# `subtree split` al repo publicado, que es donde lo ejecuta su propio CI). La copia de
+# AppFoundation/Scripts/ tiene una sección extra delimitada por `SOLO-APPFOUNDATION:
+# begin/end` (PRD-AF-10, "modo multi") que no existe aquí: el CI del monorepo no tiene un job
+# `multi` (ver AppFoundation/Scripts/verify-multi.sh y el job `multi` de
+# AppFoundation/.github/workflows/ci.yml) — es cobertura adicional solo del repo publicado.
+# Fuera de esa sección, ambas copias deben ser byte-idénticas; lo comprueba
+# Scripts/dedup-check.sh (job `dedup-check` de este mismo ci.yml). Si tocas algo fuera de esa
+# sección, replica el cambio en la otra copia o el CI del monorepo fallará.
 #
 # Uso: Scripts/verify-generator.sh   (desde cualquier directorio; se autolocaliza)
 # CI: .github/workflows/ci.yml, job `generator`.
@@ -104,11 +115,38 @@ swift package --package-path "$DEMO_DIR" --allow-writing-to-package-directory ge
 swift package --package-path "$DEMO_DIR" --allow-writing-to-package-directory generate-feature Catalog --api --local
 swift package --package-path "$DEMO_DIR" --allow-writing-to-package-directory generate-feature Counter
 
+log "A4 (PRD-X-05): generate-feature Products --api / Detail --api --service-from Products"
+swift package --package-path "$DEMO_DIR" --allow-writing-to-package-directory generate-feature Products --api
+swift package --package-path "$DEMO_DIR" --allow-writing-to-package-directory generate-feature Detail --api --service-from Products
+
+DETAIL_LOGIC="$DEMO_DIR/Sources/DemoApp/Features/Detail/DetailLogic.swift"
+grep -q "any ProductsServicing" "$DETAIL_LOGIC" || fail "DetailLogic no depende de 'any ProductsServicing' (--service-from no se aplicó)"
+grep -q "protocol DetailServicing" "$DETAIL_LOGIC" && fail "DetailLogic declaró un DetailServicing propio — --service-from debía reutilizar ProductsServicing, no generar uno nuevo"
+[ -f "$DEMO_DIR/Sources/DemoApp/Features/Detail/Services/DetailService.swift" ] && fail "--service-from no debía generar Detail/Services/DetailService.swift"
+[ -f "$DEMO_DIR/Tests/DemoAppTests/Features/Detail/Mocks/DetailServiceMock.swift" ] && fail "--service-from no debía generar DetailServiceMock.swift"
+grep -q "ProductsServiceMock" "$DEMO_DIR/Tests/DemoAppTests/Features/Detail/DetailLogicTests.swift" \
+    || fail "DetailLogicTests no reutiliza ProductsServiceMock"
+
 log "swift build (sin ArchitectureLint todavía)"
 swift build --package-path "$DEMO_DIR" || fail "swift build falló sobre el código generado"
 
 log "swift test"
 swift test --package-path "$DEMO_DIR" || fail "swift test falló sobre el código generado"
+
+# PRD-AF-09: el código generado debe pasar la configuración curada de SwiftLint sin avisos.
+# Solo si `swiftlint` está en el PATH (el plugin lo descarga en los consumidores; aquí no).
+# OJO: $APPFOUNDATION_DIR, no $REPO_ROOT — en el monorepo REPO_ROOT es la raíz del repo y
+# Templates/ vive dentro de AppFoundation/; en el repo publicado ambos coinciden.
+SWIFTLINT_CONFIG="$APPFOUNDATION_DIR/Templates/swiftlint.yml"
+if command -v swiftlint > /dev/null 2>&1; then
+    log "swiftlint --strict sobre el código generado (Templates/swiftlint.yml)"
+    # Solo Sources/ y Tests/: los `excluded` del .yml son relativos al fichero de configuración,
+    # no al directorio lintado, así que con --config desde otro sitio no excluirían .build/.
+    swiftlint lint --strict --quiet --config "$SWIFTLINT_CONFIG" "$DEMO_DIR/Sources" "$DEMO_DIR/Tests" \
+        || fail "El código generado no pasa swiftlint --strict con la configuración curada"
+else
+    log "AVISO: swiftlint no está en el PATH — se omite la comprobación de calidad del código generado"
+fi
 
 log "Activando el plugin ArchitectureLint en el target DemoApp"
 python3 - "$DEMO_DIR/Package.swift" <<'PYEOF'
@@ -183,6 +221,11 @@ for example in LoginApp NotesApp CatalogApp CounterApp; do
         fail "Examples/$example no reportó 'archlint: 0 errors'"
     }
     log "Examples/$example: archlint limpio"
+    if command -v swiftlint > /dev/null 2>&1; then
+        swiftlint lint --strict --quiet --config "$SWIFTLINT_CONFIG" "$example_dir/Sources" "$example_dir/Tests" \
+            || fail "Examples/$example no pasa swiftlint --strict con Templates/swiftlint.yml"
+        log "Examples/$example: swiftlint --strict limpio"
+    fi
 done
 
 log "Todo verde: generate-feature (4 variantes) + ArchitectureLint (pasa limpio, falla con R1, se recupera) + archlint sobre los 4 ejemplos de AF-07."

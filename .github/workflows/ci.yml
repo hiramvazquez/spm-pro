@@ -33,6 +33,22 @@
 # - `snippets`: `swift build` en cada paquete compila `Snippets/` junto con Sources/Tests
 #   (SwiftPM los descubre como productos ejecutables automáticamente) — job explícito y
 #   rápido para que un snippet roto falle solo, sin esperar a la matriz completa de `test`.
+# - `dedup-check`: `Scripts/dedup-check.sh`. `check-doc-snippets.sh` y `verify-generator.sh`
+#   existen por triplicado/duplicado (Scripts/, AppFoundation/Scripts/, CoreNetworking/
+#   Scripts/) porque cada paquete necesita su propia copia real para sobrevivir al `subtree
+#   split` que lo publica — un symlink no serviría. Este job falla si una copia que debe
+#   coincidir con otra diverge en silencio (ya pasó con `verify-generator.sh`). Solo aquí,
+#   no en el CI de cada paquete publicado: ese no ve las copias hermanas de los otros
+#   paquetes, así que no podría comparar nada.
+# - `archlint-self`: `archlint` sobre `Sources/AppFoundation` y `Snippets/`, con la
+#   configuración de `AppFoundation/.archlint.yml` (que desactiva R1-R15 y deja SOLO R16).
+#   Las reglas de capas describen la arquitectura de una app consumidora y no aplican al
+#   paquete que define esas primitivas — sobre las fuentes propias dan diez falsos positivos
+#   por construcción. R16 sí aplica igual: toda `class` no `nonisolated` necesita un `deinit
+#   {}` explícito, porque sin él el compilador sintetiza uno AISLADO que pasa por el shim de
+#   back-deploy que abortó en iOS 26.2. Hasta 1.2.4 nada lintaba las fuentes propias y se
+#   habían colado dos: `PopGestureEnabler.ViewController` y `ResourceBundle.Finder`, más
+#   cuatro en `Snippets/` (código que el consumidor copia de la documentación).
 name: CI
 
 on:
@@ -316,3 +332,31 @@ jobs:
 
       - name: swift build (compila Sources/Tests y Snippets/)
         run: swift build
+
+  dedup-check:
+    name: Scripts duplicados entre paquetes siguen sincronizados
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scripts/dedup-check.sh
+        run: Scripts/dedup-check.sh
+
+  archlint-self:
+    name: archlint (R16) sobre las fuentes de AppFoundation
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: AppFoundation
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Construir archlint
+        run: swift build --product archlint
+
+      - name: archlint sobre Sources/ y Snippets/
+        run: .build/debug/archlint --root . Sources/AppFoundation Snippets

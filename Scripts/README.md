@@ -34,10 +34,36 @@ generador (`generate-feature`) y el linter (`ArchitectureLint`/`archlint`) de
 PRD-AF-08: las cuatro variantes de `generate-feature` compilan y pasan sus tests, el
 plugin de build pasa limpio, una violación de R1 hace fallar el build con
 `[ArchLint.R1]`, y `swift package archlint` pasa limpio sobre los cuatro ejemplos del kit
-de arquitectura (son la referencia).
+de arquitectura (son la referencia). También cubre `--service-from` (PRD-X-05/A4) y, si
+`swiftlint` está en el PATH, la configuración curada de PRD-AF-09.
 
 ```bash
 Scripts/verify-generator.sh
 ```
 
 CI: job `generator` de `.github/workflows/ci.yml`.
+
+Existe por duplicado en `AppFoundation/Scripts/` (viaja en el `subtree split` al repo
+publicado). Esa copia tiene una sección extra delimitada por los comentarios
+`SOLO-APPFOUNDATION: begin`/`end` (PRD-AF-10, "modo multi") que no existe aquí — es
+cobertura que solo corre en el CI del repo publicado (job `multi`, ver
+`AppFoundation/Scripts/verify-multi.sh`); el monorepo no tiene ese job. Fuera de esa
+sección ambas copias deben ser idénticas: lo vigila `dedup-check.sh`.
+
+## `dedup-check.sh`
+
+`check-doc-snippets.sh` (por triplicado: aquí, `AppFoundation/Scripts/`,
+`CoreNetworking/Scripts/`) y `verify-generator.sh` (por duplicado: aquí y
+`AppFoundation/Scripts/`) no pueden ser symlinks entre paquetes — cada copia tiene que
+ser un fichero real para sobrevivir al `git subtree split` que publica cada paquete como
+su propio repo. Eso las deja mantenidas a mano, y una copia que diverge en silencio no
+se nota hasta que el CI del repo publicado se comporta distinto al del monorepo (ya pasó:
+`verify-generator.sh` llevaba dos PRDs sin sincronizar). Este script compara las copias
+que deben coincidir y falla con el `diff` si alguna divergió.
+
+```bash
+Scripts/dedup-check.sh
+```
+
+CI: job `dedup-check` de `.github/workflows/ci.yml`. Solo en el monorepo: el CI de un
+paquete publicado no ve las copias hermanas de los otros paquetes.
