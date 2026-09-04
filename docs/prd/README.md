@@ -45,6 +45,7 @@ Objetivo global: dejar AppFoundation y CoreNetworking en **10/10** dentro del al
 | 12 | APP-01 (repo AppStarter) | tags 1.0.0 publicados |
 | 13 | X-05 (AppFoundation 1.0.1) | APP-01 terminado |
 | 14 | AF-09 (calidad de código, AppFoundation 1.1.0) | calibrado en AppStarter primero |
+| 15 | AF-10 (`archinit --multi`, AppFoundation 1.2.0) | AF-09 publicado |
 
 Conflictos esperados y cómo evitarlos:
 - `README.md` de cada paquete: cada PRD edita **solo su sección**; X-02 hace la pasada final de coherencia.
