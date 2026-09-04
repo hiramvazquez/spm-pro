@@ -518,3 +518,13 @@ AnalyticsAdapters, PlatformTestSupport) + `Packages/Features` (11 targets). 133 
 11 unitarios de app, 24 snapshots, 10 XCUITests offline, 2 de integración real; `check-showcase.sh`
 50/50. Detalle, bugs encontrados y fricciones en `PRD-APP-02.md` («Ejecución») y en
 `AppStarter/docs/INFORME-MULTI.md`. Pendiente del kit: PRD-AF-11 A1–A7 (1.3.0).
+
+---
+
+# Hotfixes 1.2.1 → 1.2.3 de AppFoundation (2026-09-04), salidos del escaparate de AppStarter
+
+| Versión | Qué | Evidencia |
+|---|---|---|
+| 1.2.1 | `@Observable` no se hereda de `BaseViewModel`: plantilla, ejemplos, docs y regla R15 | `ObservationInheritanceTests` |
+| 1.2.2 | `deinit {}` explícito en `Coordinator`, `Container`, `Inject`, `LogicViewModel`, `ObservingScreenState`, `BindingBackedState`, plantilla, ejemplos, snippets | crash report del CI (iOS 26.2) + experimento con `nm` en `docs/repros/isolated-deinit-backdeploy.md` |
+| 1.2.3 | `deinit` en `Throttler` y regla R16 (toda clase no `nonisolated` declara `deinit`) | el job de app de AppStarter en iOS 26.2 pasa con 1.2.3 (antes abortaba) |

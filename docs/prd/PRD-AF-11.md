@@ -17,9 +17,11 @@
 
 ## Acciones (AppFoundation 1.2.1)
 
-- **A8 · `deinit {}` explícito en toda clase `@MainActor`** (1.2.2): kit, plantilla, ejemplos, snippets,
-  `AGENTS.md`; repro en `docs/repros/isolated-deinit-backdeploy.md`. Pendiente: regla R16 del linter
-  (clase `@MainActor` sin `deinit`) y reporte aguas arriba.
+- **A8 · `deinit {}` explícito en toda clase `@MainActor`** (1.2.2 + 1.2.3): kit, plantilla, ejemplos,
+  snippets, `AGENTS.md`; repro en `docs/repros/isolated-deinit-backdeploy.md`. 1.2.2 cubrió `Coordinator`
+  y compañía y el abort se movió a `Throttler`; 1.2.3 añade su `deinit` y la **regla R16** (error:
+  toda clase no `nonisolated` declara `deinit`). Confirmado en el CI de AppStarter (iOS 26.2): el job de
+  la app pasa (`main` `7308a03`). Pendiente: reporte aguas arriba.
 
 - **A0 · `@Observable` en cada ViewModel** (prioridad máxima): `Templates/ViewModel.swift.txt`, los cuatro ejemplos, los snippets y los artículos (`ScreenStateAndViewModels`, `Architecture`, `GettingStarted`, `Theming`) declaran `@Observable final class XxxViewModel: LogicViewModel<…>`; `AGENTS.md` lo dice en el bullet del ViewModel («`@Observable` no se hereda: cada ViewModel lo declara»). Regla **R15** de `archlint` (error): una `class` cuyo nombre termina en `ViewModel` y declara propiedades almacenadas debe llevar `@Observable`. Test de regresión en AppFoundation: una subclase sin el macro no notifica cambios de su propiedad (usando `withObservationTracking`), y la misma con el macro sí. Verificar que aplicar el macro en subclase e hija no duplica registradores ni rompe `phase` (el informe dice que funciona; medirlo en test).
 
@@ -38,6 +40,7 @@
 
 ## Ejecución
 
+- **A8 publicada como 1.2.2/1.2.3** (2026-09-04): ver arriba.
 - **A0 publicada como 1.2.1** (2026-09-04, `main` de AppFoundation `1482cb9`): `@Observable` en
   plantilla, ejemplos, snippets, artículos, README y `AGENTS.md`; regla R15 (error) con fixture y
   tests; `ObservationInheritanceTests` mide el fallo y la corrección con `withObservationTracking`.
