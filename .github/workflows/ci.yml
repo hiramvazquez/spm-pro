@@ -49,6 +49,14 @@
 #   back-deploy que abortó en iOS 26.2. Hasta 1.2.4 nada lintaba las fuentes propias y se
 #   habían colado dos: `PopGestureEnabler.ViewController` y `ResourceBundle.Finder`, más
 #   cuatro en `Snippets/` (código que el consumidor copia de la documentación).
+# - `lifecycle-contract-probe`: `AppFoundation/Scripts/verify-lifecycle-contract.sh` monta
+#   una app real (`AppFoundation/Sources/LifecycleContractProbeApp/`, un ejecutable, no un
+#   test — `swift test` no lo toca) con una `NavigationStack` en una ventana de verdad, y
+#   verifica que `ScreenContainer` cancela el trabajo en vuelo de una pantalla SOLO al
+#   eliminarla de la jerarquía, nunca al taparla con un push — la mitad del contrato de
+#   AF-11 que `swift test` no puede cubrir (headless, sin ventana). `continue-on-error:
+#   true` temporal: no confirmado todavía con un run real si `macos-15` da WindowServer
+#   para esto fuera de un target de UI tests.
 name: CI
 
 on:
@@ -360,3 +368,26 @@ jobs:
 
       - name: archlint sobre Sources/ y Snippets/
         run: .build/debug/archlint --root . Sources/AppFoundation Snippets
+
+  # PRD (verificación del contrato de cancelación de ScreenContainer, sept. 2026): igual que
+  # el `lifecycle-contract-probe` de AppFoundation/.github/workflows/ci.yml (el CI del
+  # repositorio publicado) — mismo script, mismo `continue-on-error` temporal por la misma
+  # razón (sin confirmar todavía con un run real si `macos-15` da WindowServer para una app
+  # con ventana que no es un target de UI tests). Ver el encabezado de
+  # AppFoundation/Scripts/verify-lifecycle-contract.sh.
+  lifecycle-contract-probe:
+    name: AppFoundation — ScreenContainer cancela solo al eliminar, nunca al tapar
+    runs-on: macos-15
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: AppFoundation
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Seleccionar Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - run: Scripts/verify-lifecycle-contract.sh
