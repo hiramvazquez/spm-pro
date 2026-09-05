@@ -45,5 +45,6 @@
   plantilla, ejemplos, snippets, artículos, README y `AGENTS.md`; regla R15 (error) con fixture y
   tests; `ObservationInheritanceTests` mide el fallo y la corrección con `withObservationTracking`.
   Verificación completa en verde (336 tests, generador, `verify-multi`, DocC sin warnings).
-- **A1–A7 pendientes** → siguiente versión (1.3.0), junto con lo que salga de las Fases 2 y 3 de
+- **A1–A7 pendientes** → siguiente versión (1.4.0; el 1.3.0 lo ocupó la cancelación por
+  ciclo de vida de pantalla, ver CHANGELOG), junto con lo que salga de las Fases 2 y 3 de
   PRD-APP-02.

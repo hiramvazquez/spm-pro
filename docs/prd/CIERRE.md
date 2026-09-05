@@ -517,7 +517,7 @@ lo verifica de punta a punta con prueba negativa y build de la app en Xcode. Art
 AnalyticsAdapters, PlatformTestSupport) + `Packages/Features` (11 targets). 133 tests de paquetes,
 11 unitarios de app, 24 snapshots, 10 XCUITests offline, 2 de integración real; `check-showcase.sh`
 50/50. Detalle, bugs encontrados y fricciones en `PRD-APP-02.md` («Ejecución») y en
-`AppStarter/docs/INFORME-MULTI.md`. Pendiente del kit: PRD-AF-11 A1–A7 (1.3.0).
+`AppStarter/docs/INFORME-MULTI.md`. Pendiente del kit: PRD-AF-11 A1–A7 (1.4.0 — el 1.3.0 lo ocupó `ScreenState.cancelInFlightWork()`).
 
 ---
 
