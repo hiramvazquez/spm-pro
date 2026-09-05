@@ -54,9 +54,9 @@
 #   test — `swift test` no lo toca) con una `NavigationStack` en una ventana de verdad, y
 #   verifica que `ScreenContainer` cancela el trabajo en vuelo de una pantalla SOLO al
 #   eliminarla de la jerarquía, nunca al taparla con un push — la mitad del contrato de
-#   AF-11 que `swift test` no puede cubrir (headless, sin ventana). `continue-on-error:
-#   true` temporal: no confirmado todavía con un run real si `macos-15` da WindowServer
-#   para esto fuera de un target de UI tests.
+#   AF-11 que `swift test` no puede cubrir (headless, sin ventana). Bloqueante: un run
+#   real confirmó que `macos-15` da WindowServer para esto fuera de un target de UI tests
+#   (ver la nota sobre el job, más abajo).
 name: CI
 
 on:
@@ -108,7 +108,12 @@ jobs:
       matrix:
         include:
           - package: AppFoundation
-            scheme: AppFoundation
+            # Mismo caso que CoreNetworking: con varios productos, el scheme que Xcode
+            # genera con el NOMBRE DEL PAQUETE cubre solo la librería y NO trae acción de
+            # test (`xcodebuild test` falla con "Scheme AppFoundation is not currently
+            # configured for the test action", exit 66). El agregado que sí la trae es
+            # `AppFoundation-Package` — el que lista `xcodebuild -list`.
+            scheme: AppFoundation-Package
           - package: CoreNetworking
             # Con dos productos SPM no genera un scheme `CoreNetworking` con acción de
             # test: el agregado es `CoreNetworking-Package` (ver README del paquete).
