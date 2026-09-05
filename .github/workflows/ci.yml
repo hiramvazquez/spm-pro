@@ -371,14 +371,16 @@ jobs:
 
   # PRD (verificación del contrato de cancelación de ScreenContainer, sept. 2026): igual que
   # el `lifecycle-contract-probe` de AppFoundation/.github/workflows/ci.yml (el CI del
-  # repositorio publicado) — mismo script, mismo `continue-on-error` temporal por la misma
-  # razón (sin confirmar todavía con un run real si `macos-15` da WindowServer para una app
-  # con ventana que no es un target de UI tests). Ver el encabezado de
+  # repositorio publicado) — mismo script. Ver el encabezado de
   # AppFoundation/Scripts/verify-lifecycle-contract.sh.
+  # Confirmado en un run real (AppFoundation, 306d677, 2026-09-05): los runners `macos-15`
+  # SÍ dan WindowServer a una app con ventana que no es un target de UI tests. El job pasó
+  # por el motivo correcto — el log trae la secuencia completa, incluida la aserción de que
+  # B NO se cancela mientras está tapada — así que bloquea de verdad, sin `continue-on-error`.
+  # Un gate que no puede fallar no es un gate.
   lifecycle-contract-probe:
     name: AppFoundation — ScreenContainer cancela solo al eliminar, nunca al tapar
     runs-on: macos-15
-    continue-on-error: true
     defaults:
       run:
         working-directory: AppFoundation
