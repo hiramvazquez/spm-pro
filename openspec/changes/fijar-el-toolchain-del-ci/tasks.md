@@ -68,3 +68,29 @@
 ## 5. Cierre
 
 - [x] 5.1 `/kit-verifica` en verde.
+
+## 7. Cierre del revisor (AMBER, 2026-09-16)
+
+- [x] 7.1 **Dato falso corregido**: se afirmó que `macos-26` ya no trae Xcode 26.0.x, y sí la
+      trae —salió de leer la tabla del readme truncada a seis filas—. Corregido en el
+      comentario del workflow, en `design.md` (D2, que se apoyaba entero en ese dato) y
+      anotado en el proposal. Verificación: `gh api …/macos-26-Readme.md` lista 26.0.1.
+- [x] 7.2 **El job del mínimo no compilaba el código iOS-only.** `swift build` construye para
+      el host, así que los bloques `#if os(iOS)` de cuatro ficheros —`PopGestureEnabler`
+      entero— nunca se type-checkeaban con 26.0.1, que es justo la parte iOS de una librería
+      de iOS. Se añade `xcodebuild build -destination 'generic/platform=iOS Simulator'` al
+      job. Verificación: el paso aparece y pasa en verde para ambos paquetes.
+- [x] 7.3 **Promesa falsa en los AGENTS.md publicados.** Decían que el CI validaba con 26.0.1
+      y 26.3 «fijados en `.github/workflows/ci.yml`», y en el repo publicado esa ruta resuelve
+      al workflow propio del paquete, que sigue con `latest-stable`. El texto pasa a nombrar
+      el CI del monorepo y a advertir de esa diferencia; los README igual. Verificación:
+      ninguna afirmación dice ya «lo comprueba el CI» sin decir cuál.
+- [ ] 7.4 Corrida de CI que confirme el paso nuevo de iOS en el job del mínimo.
+
+## 8. Hallazgo que NO se arregla aquí
+
+- [ ] 8.1 Los `ci.yml` propios de `AppFoundation/` y `CoreNetworking/` —los que viajan en el
+      `subtree split`— siguen con `latest-stable` y sin job de mínimo (7 y 6 apariciones).
+      El monorepo es la fuente y sí tiene la puerta, así que no bloquea; pero quien clone el
+      repo publicado tiene un CI que no comprueba lo que su README promete. Merece su propio
+      cambio: tocarlo aquí sería ampliar el alcance por tercera vez en la misma sesión.

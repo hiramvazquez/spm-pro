@@ -81,11 +81,13 @@ env:
   # Comprobado el 2026-09-16 con
   #   gh api repos/actions/runner-images/contents/images/macos/<imagen>-Readme.md
   # qué ofrece cada imagen alojada:
-  #   macos-15 → 16.3 … 26.0.1, 26.1.1, 26.2, 26.3   (la ÚNICA con 26.0.x)
-  #   macos-26 → 26.1.1 … 26.6                       (ya no trae 26.0.x)
+  #   macos-15 → 16.3 … 26.0.1, 26.1.1, 26.2, 26.3
+  #   macos-26 → 26.0.1 … 26.6   (también trae 26.0.1)
   #   xcode-27 → 27.0 beta 6 (27A5252f), en preview
-  # De ahí que el job del mínimo viva en macos-15: si la matriz se mudara a macos-26, el
-  # mínimo comprobable subiría a 26.1.1 sin decisión humana — el mismo agujero con otra cara.
+  # El job del mínimo vive en macos-15 solo porque es donde corre el resto de la matriz: las
+  # dos imágenes traen 26.0.1, así que migrar a macos-26 no costaría el job del mínimo.
+  # (Corregido el 2026-09-16: una lectura truncada de esa tabla dio pie a afirmar que
+  # macos-26 ya no traía 26.0.x. Sí la trae.)
   #
   # Al subir cualquiera de las dos, rehacer esa comprobación y actualizar la fecha.
   XCODE_MINIMO: "26.0.1"        # compila la librería: el contrato con quien consume
@@ -425,7 +427,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [AppFoundation, CoreNetworking]
+        include:
+          - package: AppFoundation
+            scheme: AppFoundation-Package
+          - package: CoreNetworking
+            scheme: CoreNetworking-Package
     defaults:
       run:
         working-directory: ${{ matrix.package }}
@@ -446,8 +452,23 @@ jobs:
       # promete a quien consume es que la LIBRERÍA compile con el mínimo, y eso es lo que
       # aquí se comprueba. Las suites de test no compilan ni corren en 26.0.1 —medido en el
       # run 35127837096 el 2026-09-16— y se ejecutan en el job `tests-minimo-ejecutable`.
-      - name: Build estricto de la librería (0 warnings)
+      - name: Build estricto de la librería para macOS (0 warnings)
         run: SWIFT_STRICT_WARNINGS=1 swift build
+
+      # Y para iOS, que es donde vive la mitad interesante. `swift build` compila para el
+      # HOST: los bloques `#if os(iOS)` —PopGestureEnabler entero, y trozos de
+      # ScreenContainer, CustomNavigationBar, CoordinatorView— se parsean pero NO se
+      # type-checkean. Sin este paso, el job decía comprobar el mínimo de una librería de
+      # iOS sin compilar nunca su código de iOS. Hallazgo del revisor, 2026-09-16.
+      #
+      # `build` y no `build-for-testing`: las pruebas no compilan en el mínimo, y aquí lo
+      # que se comprueba es la librería. No necesita simulador arrancado.
+      - name: Build de la librería para iOS (0 warnings)
+        run: |
+          set -o pipefail
+          xcodebuild build -scheme ${{ matrix.scheme }} \
+            -destination 'generic/platform=iOS Simulator' \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=YES CODE_SIGNING_ALLOWED=NO -quiet
 
   # Las suites de test necesitan MÁS que el mínimo publicado, y por dos causas distintas
   # medidas en CI el 2026-09-16 (runs 35127837096 y 35134647002):

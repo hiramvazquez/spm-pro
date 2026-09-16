@@ -19,7 +19,7 @@ ejemplo completo de los dos compuestos.
 ## Requisitos
 
 - **Para consumir los paquetes**: Swift 6.2+ (swift-tools 6.2) — Xcode 26 o el toolchain
-  equivalente. El CI lo comprueba compilando ambas librerías con Xcode 26.0.1.
+  equivalente. El CI lo comprueba compilando ambas librerías con Xcode 26.0.1, para macOS y para iOS.
 - **Para desarrollarlos**: Xcode 26.2 o superior. Sus suites de test usan *exit tests* de
   swift-testing y `weak let`, que no existen antes; medido en CI el 2026-09-16.
 - iOS 17+ / macOS 14+.

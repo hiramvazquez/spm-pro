@@ -7,8 +7,8 @@ el 2026-09-16 con `gh api repos/actions/runner-images/contents/…` sobre `actio
 
 | Label | Xcode disponibles | Notas |
 |---|---|---|
-| `macos-15` (arm64) | 16.3 … **26.0.1, 26.1.1, 26.2, 26.3** | la única con 26.0.x |
-| `macos-26` (arm64, = `macos-latest`) | **26.1.1 … 26.6** | ya no trae 26.0.x |
+| `macos-15` (arm64) | 16.3 … **26.0.1, 26.1.1, 26.2, 26.3** | |
+| `macos-26` (arm64, = `macos-latest`) | **26.0.1 … 26.6** | también trae 26.0.1 |
 | `xcode-27` (arm64) | **27.0 beta 6** (`27A5252f`) | imagen en *preview*, no GA |
 
 **Por qué no basta con «usar Xcode 27»:** el build de esa imagen (`27A5252f`) no es el que se
@@ -59,13 +59,14 @@ es restar, no añadir.
 
 ### D2. El job del mínimo se queda en `macos-15`
 
-El mínimo declarado es Xcode 26, y **26.0.1 solo existe en `macos-15`**. Si la matriz se
-moviera a `macos-26`, el mínimo comprobable pasaría a ser 26.1.1 sin que nadie lo decidiera —
-el mismo fallo que esta propuesta viene a cerrar, con otra cara.
+Por una razón menor: es donde corre el resto de la matriz, y mezclar imágenes sin motivo
+añade una variable más.
 
-*Consecuencia aceptada:* el día que `macos-15` se retire, el mínimo comprobable subirá. Esa
-fecha no la controlamos, y por eso el comentario de la variable lleva fecha: cuando deje de
-ser cierta, se vuelve a decidir.
+*Corregido el 2026-09-16, tras la revisión:* la primera versión de esta decisión afirmaba que
+«26.0.1 solo existe en `macos-15`» y construía sobre eso todo el razonamiento. Es falso —el
+readme de `macos-26` lista 26.0.1—, y salió de leer la tabla truncada a seis filas. Con el
+dato correcto la decisión se sostiene igual, pero vale mucho menos: migrar a `macos-26` no
+costaría el job del mínimo, así que el día que `macos-15` se retire la mudanza es barata.
 
 ### D3. El aviso temprano usa `xcode-27` y no bloquea
 

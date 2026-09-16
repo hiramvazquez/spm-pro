@@ -26,7 +26,9 @@ verlos (ver `design.md` para las tres mediciones).
 - **Queda escrito que Xcode 27 NO entra en el CI todavía, y bajo qué condición entraría.**
   No es preferencia: medido el 2026-09-16, ninguna imagen alojada trae una Xcode 27 estable
   —`macos-15` llega a 26.3, `macos-26` a 26.6, y la única con 27 trae la beta 6
-  (`27A5252f`), que ni siquiera es el build que se usa en local (`27A266a`)—.
+  (`27A5252f`), que ni siquiera es el build que se usa en local (`27A266a`)—. (Ese dato sigue
+  siendo válido; lo que se corrigió tras la revisión fue otra afirmación sobre esas mismas
+  imágenes: ver `design.md`, D2.)
 - **Aviso temprano de Swift 6.4**, en un job que no bloquea: que una incompatibilidad con el
   toolchain de desarrollo se vea en el CI y no al publicar.
 - **El desfase se documenta donde se toman decisiones**, no solo en `kit.conf`.
