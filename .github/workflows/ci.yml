@@ -73,8 +73,23 @@ permissions:
   contents: read
 
 env:
-  # Swift 6.2 (tools) exige Xcode 26.x; `latest-stable` lo garantiza en la imagen macos-15.
-  XCODE_VERSION: latest-stable
+  # Versiones FIJAS, no un selector de «la más reciente»: ese resolvía a la Xcode 26.x más
+  # NUEVA de la imagen, así que validaba una versión distinta de la que los README prometen
+  # («Swift 6.2+ — Xcode 26 o el toolchain equivalente») y se movería sola el día que la
+  # imagen incorpore una Xcode mayor, sin que nadie lo decidiera.
+  #
+  # Comprobado el 2026-09-16 con
+  #   gh api repos/actions/runner-images/contents/images/macos/<imagen>-Readme.md
+  # qué ofrece cada imagen alojada:
+  #   macos-15 → 16.3 … 26.0.1, 26.1.1, 26.2, 26.3   (la ÚNICA con 26.0.x)
+  #   macos-26 → 26.1.1 … 26.6                       (ya no trae 26.0.x)
+  #   xcode-27 → 27.0 beta 6 (27A5252f), en preview
+  # De ahí que el job del mínimo viva en macos-15: si la matriz se mudara a macos-26, el
+  # mínimo comprobable subiría a 26.1.1 sin decisión humana — el mismo agujero con otra cara.
+  #
+  # Al subir cualquiera de las dos, rehacer esa comprobación y actualizar la fecha.
+  XCODE_MINIMO: "26.0.1"
+  XCODE_ACTUAL: "26.3"
 
 jobs:
   lint:
@@ -86,7 +101,7 @@ jobs:
       - name: Seleccionar Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: ${{ env.XCODE_VERSION }}
+          xcode-version: ${{ env.XCODE_ACTUAL }}
 
       - name: Versiones
         run: |
@@ -127,7 +142,7 @@ jobs:
       - name: Seleccionar Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: ${{ env.XCODE_VERSION }}
+          xcode-version: ${{ env.XCODE_ACTUAL }}
 
       - name: Versiones
         run: |
@@ -208,7 +223,7 @@ jobs:
       - name: Seleccionar Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: ${{ env.XCODE_VERSION }}
+          xcode-version: ${{ env.XCODE_ACTUAL }}
 
       - name: Versiones
         run: |
@@ -238,7 +253,7 @@ jobs:
       - name: Seleccionar Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: ${{ env.XCODE_VERSION }}
+          xcode-version: ${{ env.XCODE_ACTUAL }}
 
       - name: Versiones
         run: |
@@ -260,7 +275,7 @@ jobs:
       - name: Seleccionar Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: ${{ env.XCODE_VERSION }}
+          xcode-version: ${{ env.XCODE_ACTUAL }}
 
       - name: Versiones
         run: |
@@ -301,7 +316,7 @@ jobs:
       - name: Seleccionar Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: ${{ env.XCODE_VERSION }}
+          xcode-version: ${{ env.XCODE_ACTUAL }}
 
       - name: Scripts/check-doc-snippets.sh
         working-directory: ${{ github.workspace }}
@@ -341,7 +356,7 @@ jobs:
       - name: Seleccionar Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: ${{ env.XCODE_VERSION }}
+          xcode-version: ${{ env.XCODE_ACTUAL }}
 
       - name: swift build (compila Sources/Tests y Snippets/)
         run: swift build
@@ -366,7 +381,7 @@ jobs:
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: ${{ env.XCODE_VERSION }}
+          xcode-version: ${{ env.XCODE_ACTUAL }}
 
       - name: Construir archlint
         run: swift build --product archlint
@@ -395,6 +410,74 @@ jobs:
       - name: Seleccionar Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: ${{ env.XCODE_VERSION }}
+          xcode-version: ${{ env.XCODE_ACTUAL }}
 
       - run: Scripts/verify-lifecycle-contract.sh
+
+  # El contrato publicado en los README es «Swift 6.2+ — Xcode 26 o el toolchain
+  # equivalente». El resto de la matriz corre con XCODE_ACTUAL, que lo satisface pero NO lo
+  # comprueba: si algo dejara de compilar con la 26.0, nadie se enteraría hasta que lo
+  # reportara quien consume. Este job es quien sostiene esa promesa, y por eso bloquea.
+  minimo-soportado:
+    name: Mínimo soportado — Xcode 26.0.1 (${{ matrix.package }})
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [AppFoundation, CoreNetworking]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Seleccionar Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_MINIMO }}
+
+      - name: Versiones
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Build estricto (0 warnings)
+        run: SWIFT_STRICT_WARNINGS=1 swift build --build-tests
+
+      - name: swift test (macOS)
+        run: swift test --parallel
+
+  # Aviso temprano del toolchain con el que se DESARROLLA (Swift 6.4 / Xcode 27). Existe
+  # porque el desfase entre desarrollo y CI ya costó caro: el 2026-09-16 se publicaron dos
+  # versiones con el CI en rojo y tres rondas para cerrarlo, porque los diagnósticos que
+  # emite 6.2.4 no los emite 6.4 y no hay forma local de verlos.
+  #
+  # NO bloquea, y es deliberado: `xcode-27` es una imagen en PREVIEW y trae una beta
+  # (27.0 beta 6, 27A5252f). Una imagen en preview no puede decidir si se publica o no.
+  #
+  # CONDICIÓN PARA VOLVERLO BLOQUEANTE: cuando `xcode-27` salga de preview y su Xcode sea
+  # estable. Seguimiento: https://github.com/actions/runner-images/issues/14404
+  aviso-toolchain-desarrollo:
+    name: Aviso temprano — Xcode 27 beta (${{ matrix.package }})
+    runs-on: xcode-27
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [AppFoundation, CoreNetworking]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versiones
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Build estricto (0 warnings)
+        run: SWIFT_STRICT_WARNINGS=1 swift build --build-tests
+
+      - name: swift test (macOS)
+        run: swift test --parallel
