@@ -88,7 +88,8 @@ env:
   # mínimo comprobable subiría a 26.1.1 sin decisión humana — el mismo agujero con otra cara.
   #
   # Al subir cualquiera de las dos, rehacer esa comprobación y actualizar la fecha.
-  XCODE_MINIMO: "26.0.1"
+  XCODE_MINIMO: "26.0.1"        # compila la librería: el contrato con quien consume
+  XCODE_TESTS_MINIMO: "26.2"    # la más baja donde corren las suites (ver su job)
   XCODE_ACTUAL: "26.3"
 
 jobs:
@@ -448,17 +449,27 @@ jobs:
       - name: Build estricto de la librería (0 warnings)
         run: SWIFT_STRICT_WARNINGS=1 swift build
 
-  # TEMPORAL (tarea 6.2): mide en qué 26.x corren las suites. Cuando haya resultado, esto se
-  # colapsa a una sola versión fijada en una variable, con su comentario.
+  # Las suites de test necesitan MÁS que el mínimo publicado, y por dos causas distintas
+  # medidas en CI el 2026-09-16 (runs 35127837096 y 35134647002):
+  #
+  #   - CoreNetworking usa *exit tests* de swift-testing en cuatro sitios
+  #     (NetworkingConfigurationTests ×3, PinningTests ×1). Hasta 26.1.1 esa facilidad no
+  #     está implementada: `Testing/ExitTest.swift:398: Fatal error: Unimplemented`.
+  #   - AppFoundation usa `weak let` en ViewModelOwnershipTests:99 y :127, que hasta 26.1.1
+  #     el compilador rechaza con «'weak' must be a mutable variable».
+  #
+  # Medido: 26.0.1 → no; 26.1.1 → no (las dos causas siguen); 26.2 → SÍ, los dos paquetes.
+  # De ahí XCODE_TESTS_MINIMO. Las librerías sí compilan en 26.0.1 — eso lo comprueba el job
+  # `minimo-soportado`, y es lo que el contrato promete a quien consume.
+  #
+  # Al subirla, rehacer la medición: puede que la causa haya desaparecido y baje.
   tests-minimo-ejecutable:
-    name: Medición — tests con Xcode ${{ matrix.xcode }} (${{ matrix.package }})
+    name: Tests en el mínimo ejecutable — Xcode 26.2 (${{ matrix.package }})
     runs-on: macos-15
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
         package: [AppFoundation, CoreNetworking]
-        xcode: ["26.1.1", "26.2"]
     defaults:
       run:
         working-directory: ${{ matrix.package }}
@@ -468,7 +479,7 @@ jobs:
       - name: Seleccionar Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: ${{ matrix.xcode }}
+          xcode-version: ${{ env.XCODE_TESTS_MINIMO }}
 
       - name: Versiones
         run: |

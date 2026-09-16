@@ -29,16 +29,19 @@
 
 ## 6. Separar compilar del mínimo de ejecutar los tests (enmienda 2026-09-16)
 
-- [ ] 6.1 El job del mínimo deja de ejecutar tests y solo compila (`swift build`, sin
+- [x] 6.1 El job del mínimo deja de ejecutar tests y solo compila (`swift build`, sin
       `--build-tests`: las pruebas son justamente lo que no compila en 26.0.1).
       Verificación: el job pasa en verde para ambos paquetes con Xcode 26.0.1.
-- [ ] 6.2 Medir en CI cuál es la 26.x más baja donde las suites corren, probando 26.1.1 y
-      26.2 en una matriz temporal. Verificación: el resultado de la corrida queda anotado
-      en esta tarea.
-- [ ] 6.3 Fijar esa versión en una variable propia y dejar un job que ejecute las suites con
+- [x] 6.2 Medir en CI cuál es la 26.x más baja donde las suites corren, probando 26.1.1 y
+      26.2 en una matriz temporal. **Resultado (run `35134647002`, 2026-09-16): 26.2.**
+      26.0.1 → no; 26.1.1 → no, con las MISMAS dos causas (exit tests sin implementar en
+      CoreNetworking, `weak let` rechazado en AppFoundation); 26.2 → sí, los dos paquetes.
+      Los dos jobs de `Mínimo soportado` pasaron en verde, así que ambas librerías compilan
+      con 26.0.1: el contrato publicado se cumple.
+- [x] 6.3 Fijar esa versión en una variable propia y dejar un job que ejecute las suites con
       ella, con un comentario que diga qué lo impide en el mínimo (exit tests y `weak let`).
       Verificación: el workflow nombra ambas causas.
-- [ ] 6.4 Los tres README distinguen el mínimo para **consumir** del mínimo para
+- [x] 6.4 Los tres README distinguen el mínimo para **consumir** del mínimo para
       **desarrollar**. Verificación: los tres lo dicen.
 
 ## 3. El aviso temprano del toolchain de desarrollo
