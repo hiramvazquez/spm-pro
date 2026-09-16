@@ -6,3 +6,6 @@ xcuserdata/
 *.xcresult
 .swiftpm/xcode/xcuserdata/
 *.profraw
+
+# Firma de verificación del kit: estado local, ligado a un diff
+.agent-kit/

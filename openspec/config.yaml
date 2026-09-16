@@ -1,0 +1,76 @@
+schema: spec-driven
+
+context: |
+  Language: es
+  All artifacts must be written in es.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+
+  Proyecto: monorepo de DOS librerías SwiftPM —no hay app—. Mínimos iOS 17 / macOS 14,
+  swift-tools 6.2, language mode 6, con las seis upcoming features de baseline Swift 7
+  activadas (el criterio sale de `swiftc -print-supported-features`, no de una lista a ojo).
+  Cada paquete se publica a su PROPIO repositorio por `git subtree split`: el tag va en la
+  rama split (`af-only` / `cn-only`), NUNCA en `main` — SwiftPM exige `Package.swift` en la
+  raíz del repo que consume. El procedimiento está en el README raíz y el checklist en
+  `docs/prd/CIERRE.md`.
+
+  Módulos:
+  - `AppFoundation/` — arquitectura de app: estado de pantalla, navegación, inyección de
+    dependencias, UI y temas; más `archlint` (el linter de arquitectura, R1-R16) y los
+    plugins `generate-feature` / `ArchInit` que GENERAN código en los proyectos que lo usan.
+    Lo que emiten las plantillas de `Templates/` es código que compila en casa de otro: si
+    cambias una plantilla, lo que rompes no sale en estos tests.
+  - `CoreNetworking/` — cliente HTTP: `APIError` con typed throws, pinning, retry con
+    backoff, refresco de token, y `CoreNetworkingTestSupport` como producto SEPARADO para
+    que los mocks jamás viajen en un binario de producción.
+  - Ambos con `Examples/` (escaparate ejecutable) y `Snippets/` (documentación que compila).
+
+  Reglas que mandan, y no se duplican aquí:
+  - `AppFoundation/AGENTS.md` y `CoreNetworking/AGENTS.md` — las reglas de cada paquete.
+  - `AppFoundation/.archlint.yml` — las reglas de arquitectura que archlint comprueba.
+  - `.swift-format` — el formato, en estricto y con `--recursive`.
+
+  Verificación: `/kit-verifica` (definida en `kit.conf`, ~15 s). Sus límites están escritos
+  allí; el más importante: el CI corre Swift 6.2.4 y esta máquina 6.4, así que la firma
+  local NO prueba compatibilidad con el toolchain del CI.
+
+rules:
+  proposal:
+    - 'Usa los encabezados que el CLI espera: "## Why" y "## What Changes".'
+    - 'Incluye siempre una sección "Fuera de alcance" con lo que NO se va a tocar.'
+    - 'Incluye siempre "Criterios de aceptación" como lista de casillas, y cada criterio
+       tiene que poder comprobarse mirando el resultado.'
+    - 'Nombra los ficheros o módulos concretos que se van a tocar.'
+    - 'Estas son librerías con API pública y SemVer: todo cambio dice explícitamente si
+       rompe API, y por qué es MAJOR, MINOR o PATCH. Si no rompe nada, dilo también —esa
+       frase es la que revisa quien publica.'
+    - 'Pero NO cuentes el resto del repo para justificarte. Enumerar lo que el cambio toca
+       es alcance y muere con el cambio; un censo del código que no tocas se archiva como
+       norma y envejece solo. Escribe el criterio, o una medición con su fecha y el comando
+       que la produjo.'
+  tasks:
+    - 'La última tarea de todo cambio es `/kit-verifica` en verde.'
+    - 'Si el cambio toca `Templates/`, `Plugins/` o el generador, una tarea aparte es
+       `Scripts/verify-generator.sh` en verde: la firma de `/kit-verifica` no lo cubre.'
+    - 'Si el cambio toca la API pública de un paquete, una tarea es su entrada de CHANGELOG.'
+  design:
+    - 'Solo si el cambio tiene decisiones técnicas de verdad. Un cambio sin decisiones no
+       lleva design.md: lleva un proposal y sus tareas.'
+
+operations:
+  apply:
+    guidance:
+      - 'Antes de escribir una función nueva, comprueba que no exista ya con
+         `/kit-duplicados`. Aquí duele el doble: hay dos paquetes y la lógica repetida entre
+         ellos es exactamente lo que `Scripts/dedup-check.sh` vigila.'
+      - 'Si al implementar descubres que el acuerdo estaba mal, se corrige el ACUERDO por
+         escrito y se dice. Lo prohibido es seguir adelante en silencio porque "es obvio
+         que hace falta".'
+  archive:
+    guidance:
+      - 'El paso obligatorio antes de archivar es el REVISOR (`/kit-revisa`): ¿esto rompe algo?
+         El juez (`/kit-acepta`) pregunta otra cosa —¿es lo ACORDADO?, criterio por criterio— y
+         se invoca cuando nadie vaya a leer el acuerdo contra lo entregado: cambios grandes o
+         que tocan varias capas (más de unos 5 ficheros), alcance que se movió al implementar,
+         o cuando quien orquesta no es quien acordó.'
+      - 'No se archiva con ACUERDO-ROTO ni con un DEVUELTO del producto. Con ACUERDO-ROTO se
+         corrige el acuerdo primero, POR ESCRITO, y se vuelve a pasar.'
