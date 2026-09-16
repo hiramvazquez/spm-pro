@@ -9,21 +9,45 @@ publicado no pueda dejar de comprobarse en silencio.
 ### Requirement: El CI valida el mínimo que los paquetes declaran
 
 Los paquetes publican un requisito mínimo de toolchain en su documentación. La integración
-continua MUST compilar y ejecutar los tests de ambos paquetes con ese mínimo, y no
-únicamente con una versión más reciente que lo satisfaga.
+continua MUST compilar ambos paquetes con ese mínimo, porque compilar es lo que el contrato
+promete a quien los consume.
+
+La ejecución de las suites de test MAY exigir un toolchain posterior al mínimo publicado,
+porque una suite puede usar facilidades del entorno de pruebas que el mínimo no tiene. En
+ese caso la integración continua MUST ejecutarlas con la versión más baja en la que corran,
+y MUST dejar escrito por qué esa versión y no el mínimo.
 
 #### Scenario: El mínimo declarado se comprueba en cada corrida
 
 - **WHEN** se ejecuta la integración continua sobre un commit
-- **THEN** existe al menos un job que compila y testea ambos paquetes con la versión mínima
-  de toolchain que la documentación declara como soportada
+- **THEN** existe al menos un job que compila ambos paquetes con la versión mínima de
+  toolchain que la documentación declara como soportada
 - **AND** ese job es bloqueante: si falla, la corrida falla
 
 #### Scenario: Un uso incompatible con el mínimo se detecta
 
-- **WHEN** un cambio introduce código que compila con un toolchain más nuevo pero no con el
-  mínimo declarado
+- **WHEN** un cambio introduce código de librería que compila con un toolchain más nuevo
+  pero no con el mínimo declarado
 - **THEN** la corrida falla en el job del mínimo, antes de que la versión se publique
+
+#### Scenario: La suite necesita más que el mínimo
+
+- **WHEN** las suites de test no pueden ejecutarse con el mínimo publicado
+- **THEN** el mínimo sigue comprobándose compilando
+- **AND** las suites se ejecutan en la versión más baja que las admita
+- **AND** la definición del CI dice qué lo impide en el mínimo
+
+### Requirement: La documentación distingue consumir de desarrollar
+
+Cuando el toolchain necesario para desarrollar el paquete es posterior al necesario para
+consumirlo, la documentación publicada MUST declarar los dos, porque presentarlos como uno
+solo da por roto un contrato que se cumple, o por cumplido uno que no se comprueba.
+
+#### Scenario: Alguien consulta los requisitos
+
+- **WHEN** una persona lee los requisitos publicados del paquete
+- **THEN** encuentra qué toolchain necesita para usarlo
+- **AND** encuentra, si es distinto, cuál necesita para compilar sus tests y contribuir
 
 ### Requirement: La versión del toolchain del CI es explícita
 

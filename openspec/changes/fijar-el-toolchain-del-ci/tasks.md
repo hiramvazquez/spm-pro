@@ -19,10 +19,27 @@
       su paso de versiones imprime Xcode 26.0.1.
 - [x] 2.2 Nombrarlo de forma que diga lo que es —el mínimo soportado, no «otra» versión—.
       Verificación: el nombre del job contiene «mínimo soportado».
-- [ ] 2.3 Correr el CI en la rama y confirmar que pasa con el código actual. **Si falla, el
-      hallazgo es real**: lo publicado no cumple el mínimo que los README prometen; se trata
-      antes de continuar y se anota aquí qué se encontró. Verificación: la corrida de la
-      rama termina con ese job en verde, o con el hallazgo escrito en este fichero.
+- [x] 2.3 Correr el CI en la rama y confirmar que pasa con el código actual. **Hallazgo
+      (run `35127837096`, 2026-09-16): no pasa, y por dos causas distintas.** CoreNetworking
+      compila pero su suite no corre —cuatro *exit tests* de swift-testing, no implementados
+      en ese toolchain: `Testing/ExitTest.swift:398: Fatal error: Unimplemented`—.
+      AppFoundation ni compila las pruebas: `ViewModelOwnershipTests.swift:99` y `:127` usan
+      `weak let`, que ese compilador rechaza. Las dos librerías SÍ compilan. Enmienda escrita
+      en `proposal.md` y en el spec; continúa en el grupo 6.
+
+## 6. Separar compilar del mínimo de ejecutar los tests (enmienda 2026-09-16)
+
+- [ ] 6.1 El job del mínimo deja de ejecutar tests y solo compila (`swift build`, sin
+      `--build-tests`: las pruebas son justamente lo que no compila en 26.0.1).
+      Verificación: el job pasa en verde para ambos paquetes con Xcode 26.0.1.
+- [ ] 6.2 Medir en CI cuál es la 26.x más baja donde las suites corren, probando 26.1.1 y
+      26.2 en una matriz temporal. Verificación: el resultado de la corrida queda anotado
+      en esta tarea.
+- [ ] 6.3 Fijar esa versión en una variable propia y dejar un job que ejecute las suites con
+      ella, con un comentario que diga qué lo impide en el mínimo (exit tests y `weak let`).
+      Verificación: el workflow nombra ambas causas.
+- [ ] 6.4 Los tres README distinguen el mínimo para **consumir** del mínimo para
+      **desarrollar**. Verificación: los tres lo dicen.
 
 ## 3. El aviso temprano del toolchain de desarrollo
 
@@ -32,9 +49,9 @@
 - [x] 3.2 Escribir en el propio workflow la condición para volverlo bloqueante: que
       `xcode-27` deje de estar en preview (seguimiento en `actions/runner-images#14404`).
       Verificación: el comentario cita la incidencia.
-- [ ] 3.3 Confirmar si la label `xcode-27` está disponible para esta cuenta. Si no lo está,
-      retirar el job y dejar escrito aquí por qué, en vez de dejarlo fallando en cada
-      corrida. Verificación: o el job corre, o este fichero explica su ausencia.
+- [x] 3.3 Confirmar si la label `xcode-27` está disponible para esta cuenta. **Sí lo está**:
+      en el run `35127837096` los dos jobs de aviso temprano corrieron y además pasaron en
+      verde, con ambos paquetes compilando y testeando sobre Xcode 27 beta 6.
 
 ## 4. Declarar el desfase donde se decide
 

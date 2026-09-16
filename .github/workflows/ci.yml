@@ -441,6 +441,40 @@ jobs:
           xcodebuild -version
           swift --version
 
+      # `swift build` a secas, SIN `--build-tests`, y es deliberado: lo que el contrato
+      # promete a quien consume es que la LIBRERÍA compile con el mínimo, y eso es lo que
+      # aquí se comprueba. Las suites de test no compilan ni corren en 26.0.1 —medido en el
+      # run 35127837096 el 2026-09-16— y se ejecutan en el job `tests-minimo-ejecutable`.
+      - name: Build estricto de la librería (0 warnings)
+        run: SWIFT_STRICT_WARNINGS=1 swift build
+
+  # TEMPORAL (tarea 6.2): mide en qué 26.x corren las suites. Cuando haya resultado, esto se
+  # colapsa a una sola versión fijada en una variable, con su comentario.
+  tests-minimo-ejecutable:
+    name: Medición — tests con Xcode ${{ matrix.xcode }} (${{ matrix.package }})
+    runs-on: macos-15
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [AppFoundation, CoreNetworking]
+        xcode: ["26.1.1", "26.2"]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Seleccionar Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ matrix.xcode }}
+
+      - name: Versiones
+        run: |
+          xcodebuild -version
+          swift --version
+
       - name: Build estricto (0 warnings)
         run: SWIFT_STRICT_WARNINGS=1 swift build --build-tests
 

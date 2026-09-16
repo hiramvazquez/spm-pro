@@ -19,9 +19,10 @@ verlos (ver `design.md` para las tres mediciones).
 - **El CI fija la versión de Xcode en vez de heredarla.** `XCODE_VERSION` pasa de
   `latest-stable` a una versión explícita, para que la imagen no pueda mover el toolchain
   bajo los pies sin que nadie lo decida.
-- **Se valida el mínimo declarado, no solo la 26.x más reciente.** Al menos un job compila y
-  testea con la Xcode 26 más antigua disponible en la imagen, que es lo que promete el
-  contrato de los README.
+- **Se valida el mínimo declarado, no solo la 26.x más reciente.** Al menos un job compila
+  con la Xcode 26 más antigua disponible en la imagen, que es lo que promete el contrato de
+  los README, y ejecuta la suite de tests con la 26.x más baja en la que esa suite pueda
+  correr (ver «Enmienda»).
 - **Queda escrito que Xcode 27 NO entra en el CI todavía, y bajo qué condición entraría.**
   No es preferencia: medido el 2026-09-16, ninguna imagen alojada trae una Xcode 27 estable
   —`macos-15` llega a 26.3, `macos-26` a 26.6, y la única con 27 trae la beta 6
@@ -56,8 +57,11 @@ no genere ninguna — este cambio toca infraestructura y documentación, no cód
 
 - [ ] `.github/workflows/ci.yml` no contiene `latest-stable`; `XCODE_VERSION` nombra una
       versión concreta.
-- [ ] Existe un job que compila y testea ambos paquetes con la Xcode 26 **más antigua** de la
+- [ ] Existe un job que **compila** ambos paquetes con la Xcode 26 **más antigua** de la
       imagen, y su nombre dice que es el mínimo soportado.
+- [ ] Existe un job que **ejecuta las suites de test** con la 26.x más baja en la que corren,
+      y el workflow dice por qué esa versión y no el mínimo.
+- [ ] Los README distinguen el mínimo para **consumir** del mínimo para **desarrollar**.
 - [ ] Existe un job de Swift 6.4 marcado como no bloqueante
       (`continue-on-error: true`), y su nombre dice que es aviso temprano.
 - [ ] `.github/workflows/ci.yml` lleva, junto a `XCODE_VERSION`, un comentario con la fecha
@@ -72,3 +76,29 @@ no genere ninguna — este cambio toca infraestructura y documentación, no cód
 - `AppFoundation/AGENTS.md` y `CoreNetworking/AGENTS.md` — la nota sobre el toolchain.
 - Sin efecto sobre consumidores: no cambia API, mínimos declarados ni artefactos publicados.
 - Más minutos de CI: dos jobs adicionales sobre la matriz actual.
+
+## Enmienda — 2026-09-16, tras la primera corrida del job del mínimo
+
+El job del mínimo se escribió para compilar **y** testear con Xcode 26.0.1. La primera
+corrida (run `35127837096`) demostró que eso no es alcanzable, y el hallazgo es más valioso
+que el plan original:
+
+- **CoreNetworking**: compila, pero la suite no corre. Cuatro tests usan *exit tests* de
+  swift-testing (`NetworkingConfigurationTests` ×3, `PinningTests` ×1) y en ese toolchain la
+  facilidad no está implementada: `Testing/ExitTest.swift:398: Fatal error: Unimplemented`.
+- **AppFoundation**: ni siquiera compila las pruebas. `ViewModelOwnershipTests.swift:99` y
+  `:127` usan `weak let`, que ese compilador rechaza con «'weak' must be a mutable
+  variable». Es la contrapartida de `ImmutableWeakCaptures`, activada en la 1.4.0.
+
+Ambos hallazgos tienen la misma forma y no la que se temía: **las librerías cumplen el
+mínimo publicado; lo que no lo cumple son sus suites de test**. Quien consume los paquetes
+desde Xcode 26.0 no está afectado.
+
+Por eso el alcance cambia, y se dice en vez de estrecharlo en silencio: el job del mínimo
+pasa a **compilar** en 26.0.1 —que es lo que el contrato promete a quien consume— y la
+ejecución de las suites se hace en la versión más baja en la que corren, medida en CI. Los
+README pasan a distinguir las dos cosas, porque hoy las presentan como una sola.
+
+**Sigue fuera de alcance** cambiar el mínimo publicado para consumir, y tocar los cuatro
+tests de exit tests o el `weak let`: son hallazgos reales, con su causa, y merecen su propio
+cambio si alguien decide que la suite debe correr en 26.0.
