@@ -85,7 +85,12 @@
       al workflow propio del paquete, que sigue con `latest-stable`. El texto pasa a nombrar
       el CI del monorepo y a advertir de esa diferencia; los README igual. Verificación:
       ninguna afirmación dice ya «lo comprueba el CI» sin decir cuál.
-- [ ] 7.4 Corrida de CI que confirme el paso nuevo de iOS en el job del mínimo.
+- [x] 7.4 Corrida de CI que confirme el paso nuevo de iOS en el job del mínimo.
+      **Run `35166718388`: los dos jobs del mínimo en verde con el paso de iOS incluido.**
+      Y como `-quiet` no deja rastro en el log, salir con 0 no probaba nada: se midió con
+      una sonda local. Con el código intacto, el comando sale 0; metiendo un error de tipos
+      DENTRO del `#if os(iOS)` de `PopGestureEnabler`, sale 65. Ese mismo error es invisible
+      para `swift build` en macOS — que es justo el agujero que este paso cierra.
 
 ## 8. Hallazgo que NO se arregla aquí
 
