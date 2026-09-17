@@ -66,18 +66,63 @@ struct CancellationTests {
         )
     }
 
-    /// Lanza `body`, lo cancela a los 100 ms y comprueba que sale por `.cancelled`.
-    /// Devuelve lo que tardó, para los pocos casos que aún tienen algo que decir sobre
-    /// el tiempo (el backoff).
+    /// Espera a que el mock haya visto la petición —`startLoading` la registra en
+    /// `recordedRequests`— y solo entonces cancela.
+    ///
+    /// El `ContinuousClock` de aquí es un TECHO de espera, no la afirmación del test: si la
+    /// señal no llega, el test falla diciendo que no pudo establecer su premisa. Es la
+    /// diferencia con medir el reloj para decidir si algo estuvo bien.
+    private func waitUntilInFlight(
+        method: HTTPMethod,
+        url: URL,
+        timeout: Duration = .seconds(10)
+    ) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while true {
+            let visto = MockURLProtocol.recordedRequests.contains {
+                $0.url == url && ($0.httpMethod ?? "GET").caseInsensitiveCompare(method.rawValue) == .orderedSame
+            }
+            if visto { return true }
+            if ContinuousClock.now >= deadline { return false }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+    }
+
+    /// Lanza `body`, lo cancela y comprueba que sale por `.cancelled`.
+    ///
+    /// Con `inFlight`, espera a que la petición esté EN VUELO antes de cancelar. Dormir un
+    /// rato fijo y confiar en llegar a tiempo era una carrera contra
+    /// `timeoutIntervalForResource` —60 s, que impone el suelo de seguridad—: si la máquina
+    /// se atasca más que eso, la petición muere por timeout y el test acusa a la cancelación
+    /// de algo que nunca llegó a ejercitar. Pasó en el run 35070600701
+    /// (`APIError(code: transport, underlying: URLError(-1001))`) y se reprodujo en local
+    /// bajando ese techo a 0,3 s.
+    ///
+    /// Sin `inFlight` conserva la espera fija, y solo lo usa el test del backoff, cuya
+    /// premisa es otra —que el bucle haya llegado a dormir— y se comprueba aparte.
+    /// Devuelve lo que tardó, para ese caso.
     @discardableResult
     private func expectCancelled(
+        inFlight: (method: HTTPMethod, url: URL)? = nil,
         _ body: @escaping @Sendable () async throws -> Void
     ) async -> Duration {
         let start = ContinuousClock.now
         let task = Task {
             try await body()
         }
-        try? await Task.sleep(for: .milliseconds(100))
+
+        if let inFlight {
+            guard await waitUntilInFlight(method: inFlight.method, url: inFlight.url) else {
+                task.cancel()
+                _ = await task.result
+                Issue.record(
+                    "no pude poner la petición en vuelo: el mock nunca registró \(inFlight.method.rawValue) \(inFlight.url). Sin esa premisa este test no afirma nada sobre la cancelación"
+                )
+                return start.duration(to: .now)
+            }
+        } else {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
         task.cancel()
 
         let outcome = await task.result
@@ -101,7 +146,7 @@ struct CancellationTests {
         method: HTTPMethod = .get,
         _ body: @escaping @Sendable () async throws -> Void
     ) async {
-        await expectCancelled(body)
+        await expectCancelled(inFlight: (method, url), body)
         let tornDown = await MockURLProtocol.waitForCancelledDelivery(method: method, url: url)
         #expect(
             tornDown,
