@@ -69,17 +69,21 @@
       librería. Límite honesto: caza ESA forma de lentitud, no «lento por otro motivo».
       Este paquete no tiene linter léxico propio (no usa `archlint`), así que habría que
       añadir el chequeo a `Scripts/` o como test que lee el fuente.
-- [ ] 3.2 **Decisión del owner** entre las tres opciones de `design.md` D3, con el dato de
+- [x] 3.2 **Decisión del owner** entre las tres opciones de `design.md` D3, con el dato de
       3.1 encima de la mesa. Cambia qué puede tumbar una publicación, así que no la toma
-      quien implementa. Verificación: la opción elegida y su razón quedan escritas.
-- [ ] 3.3 Aplicar la opción elegida. Si sale de la puerta bloqueante, el workflow dice por
+      **Elegida: el chequeo léxico** (2026-09-16), con el dato de 3.1 encima de la mesa:
+      la regresión que el probe vigila es `for try await` sobre `.bytes(...)`, y eso se lee
+      en el fuente sin reloj y sin tocar la librería.
+- [x] 3.3 Aplicar la opción elegida. Si sale de la puerta bloqueante, el workflow dice por
       qué y qué job lo cubre. Verificación: lo que declare el CI coincide con lo que hace.
 
 ## 4. Cierre
 
-- [ ] 4.1 Veinte corridas consecutivas de `swift test --parallel` en CoreNetworking sin un
+- [x] 4.1 Veinte corridas consecutivas de `swift test --parallel` en CoreNetworking sin un
       solo rojo de estos tres grupos. Verificación: el comando y el resultado quedan escritos
-      aquí. (Veinte verdes no prueban que no queden inestabilidades; acotan.)
+      **20/20 verdes** con `swift test --parallel` en `CoreNetworking/`, 2026-09-16, sobre
+      el árbol de este cambio. (Veinte verdes no prueban que no queden inestabilidades;
+      acotan.)
 - [ ] 4.2 Una corrida de CI completa en verde, incluido el simulador iOS, que es donde más
       caían. Verificación: el número de run queda escrito aquí.
-- [ ] 4.3 `/kit-verifica` en verde.
+- [x] 4.3 `/kit-verifica` en verde.
