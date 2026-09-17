@@ -422,7 +422,7 @@ jobs:
   # comprueba: si algo dejara de compilar con la 26.0, nadie se enteraría hasta que lo
   # reportara quien consume. Este job es quien sostiene esa promesa, y por eso bloquea.
   minimo-soportado:
-    name: Mínimo soportado — Xcode 26.0.1 (${{ matrix.package }})
+    name: Mínimo soportado (${{ matrix.package }})
     runs-on: macos-15
     strategy:
       fail-fast: false
@@ -485,7 +485,7 @@ jobs:
   #
   # Al subirla, rehacer la medición: puede que la causa haya desaparecido y baje.
   tests-minimo-ejecutable:
-    name: Tests en el mínimo ejecutable — Xcode 26.2 (${{ matrix.package }})
+    name: Tests en el mínimo ejecutable (${{ matrix.package }})
     runs-on: macos-15
     strategy:
       fail-fast: false

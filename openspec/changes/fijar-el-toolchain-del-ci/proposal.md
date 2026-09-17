@@ -54,11 +54,16 @@ no genere ninguna — este cambio toca infraestructura y documentación, no cód
 - **Tocar los manifiestos de los paquetes**, sus upcoming features o su código.
 - **Los tests sensibles al entorno de CoreNetworking** (`TransferTests`,
   `CancellationTests`), que fallan con el runner cargado. Es un problema real y distinto.
+- **Los `ci.yml` propios de `AppFoundation/` y `CoreNetworking/`** —los que viajan en el
+  `subtree split`—, que siguen con un selector de «la más reciente» y sin job de mínimo.
+  Añadido tras la revisión del 2026-09-16 (tarea 8.1): el monorepo es la fuente y sí tiene
+  la puerta, pero quien clone un repo publicado tiene un CI que no comprueba lo que su
+  README promete. Merece su propio cambio.
 
 ## Criterios de aceptación
 
-- [ ] `.github/workflows/ci.yml` no contiene `latest-stable`; `XCODE_VERSION` nombra una
-      versión concreta.
+- [ ] `.github/workflows/ci.yml` no contiene un selector de «la más reciente», y cada
+      versión de Xcode que usa está escrita explícitamente.
 - [ ] Existe un job que **compila** ambos paquetes con la Xcode 26 **más antigua** de la
       imagen, y su nombre dice que es el mínimo soportado.
 - [ ] Existe un job que **ejecuta las suites de test** con la 26.x más baja en la que corren,
@@ -66,8 +71,8 @@ no genere ninguna — este cambio toca infraestructura y documentación, no cód
 - [ ] Los README distinguen el mínimo para **consumir** del mínimo para **desarrollar**.
 - [ ] Existe un job de Swift 6.4 marcado como no bloqueante
       (`continue-on-error: true`), y su nombre dice que es aviso temprano.
-- [ ] `.github/workflows/ci.yml` lleva, junto a `XCODE_VERSION`, un comentario con la fecha
-      y el comando que sustentan la elección de versión.
+- [ ] `.github/workflows/ci.yml` lleva, junto a las variables de versión, un comentario con
+      la fecha y el comando que sustentan la elección.
 - [ ] `AGENTS.md` de cada paquete dice con qué toolchain valida el CI y que una verificación
       local con 6.4 no prueba compatibilidad con el mínimo.
 - [ ] `/kit-verifica` en verde.

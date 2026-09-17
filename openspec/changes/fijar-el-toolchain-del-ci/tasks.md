@@ -99,3 +99,23 @@
       El monorepo es la fuente y sí tiene la puerta, así que no bloquea; pero quien clone el
       repo publicado tiene un CI que no comprueba lo que su README promete. Merece su propio
       cambio: tocarlo aquí sería ampliar el alcance por tercera vez en la misma sesión.
+
+## 9. Cierre del juez (ACEPTADO con defectos de texto, 2026-09-16)
+
+- [x] 9.1 **El acuerdo se contradecía consigo mismo**: el criterio C1 exigía que
+      `XCODE_VERSION` nombrara una versión concreta, y las tareas 1.1 y 1.3 exigen que esa
+      variable desaparezca. Leído al pie de la letra, no se podía cumplir entero. Los dos
+      criterios pasan a hablar de «las variables de versión» sin nombrar una que ya no
+      existe. Verificación: ningún criterio nombra `XCODE_VERSION`.
+- [x] 9.2 **Dos números vivían en el nombre de un job, al lado de la variable que los
+      contiene** («Mínimo soportado — Xcode 26.0.1», «Tests en el mínimo ejecutable — Xcode
+      26.2»). Quien suba la variable dejaría el nombre mintiendo, y el nombre es lo que se ve
+      en la lista de checks. Se retiran: el paso «Versiones» imprime la que de verdad se usó.
+      Verificación: los nombres ya no llevan número.
+- [x] 9.3 **`kit.conf` enumeraba dos de las tres versiones**, y omitía justo la 26.2, que es
+      la que ejecuta las suites. Pasa a nombrar las tres con su papel. Verificación: el
+      bloque de límites cita 26.0.1, 26.2 y 26.3.
+- [x] 9.4 **La segunda reducción de alcance vivía solo en `tasks.md`.** La 8.1 —los `ci.yml`
+      propios de cada paquete— se declaraba fuera de alcance en las tareas pero no en la
+      sección «Fuera de alcance» del proposal, que es la que se archiva y la que alguien
+      leerá dentro de un año. Promovida. Verificación: el proposal la menciona.
