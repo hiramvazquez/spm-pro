@@ -5,8 +5,9 @@
 # pasan sus tests, activa `ArchitectureLint` y comprueba que el build pasa limpio, introduce
 # una violación de R1/R7/R10 y comprueba que el build FALLA con el diagnóstico esperado, y
 # finalmente corre `swift package archlint` sobre los cuatro ejemplos de AF-07 (deben pasar
-# limpios: son la referencia). También cubre PRD-X-05/A4 (`--service-from`) y, si `swiftlint`
-# está en el PATH, la configuración curada de PRD-AF-09.
+# limpios: son la referencia). También cubre PRD-X-05/A4 (`--service-from`), el formato del código
+# generado (`swift format lint --strict`) y, si `swiftlint` está en el PATH, la configuración curada
+# de PRD-AF-09.
 #
 # Este fichero existe por duplicado: aquí (monorepo) y en AppFoundation/Scripts/ (viaja en el
 # `subtree split` al repo publicado, que es donde lo ejecuta su propio CI). La copia de
@@ -148,6 +149,15 @@ else
     log "AVISO: swiftlint no está en el PATH — se omite la comprobación de calidad del código generado"
 fi
 
+# El código generado nace con formato limpio: `swift format lint --strict` con el `.swift-format` del
+# propio paquete. SwiftLint no lo cubre — da 0 violaciones sobre líneas vacías sobrantes, espacios al
+# final o imports desordenados, que es justo lo que dejaba el motor de plantillas.
+SWIFT_FORMAT_CONFIG="$APPFOUNDATION_DIR/.swift-format"
+log "swift format lint --strict sobre el código generado (.swift-format de AppFoundation)"
+swift format lint --strict --configuration "$SWIFT_FORMAT_CONFIG" --recursive \
+    "$DEMO_DIR/Sources/DemoApp/Features" "$DEMO_DIR/Tests/DemoAppTests/Features" \
+    || fail "El código generado no pasa swift format lint --strict"
+
 log "Activando el plugin ArchitectureLint en el target DemoApp"
 python3 - "$DEMO_DIR/Package.swift" <<'PYEOF'
 import sys
@@ -233,4 +243,4 @@ for example in LoginApp NotesApp CatalogApp CounterApp; do
     fi
 done
 
-log "Todo verde: generate-feature (4 variantes) + ArchitectureLint (pasa limpio, falla con R1, se recupera) + archlint sobre los 4 ejemplos de AF-07."
+log "Todo verde: generate-feature (4 variantes, formato limpio) + ArchitectureLint (pasa limpio, falla con R1, se recupera) + archlint sobre los 4 ejemplos de AF-07."
