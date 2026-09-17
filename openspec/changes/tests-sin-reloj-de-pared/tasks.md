@@ -40,23 +40,35 @@
 
 ## 2. Grupo A — el backoff
 
-- [ ] 2.1 Comprobar si `ManualClock` permite distinguir «se canceló la espera» de «no hubo
+- [x] 2.1 Comprobar si `ManualClock` permite distinguir «se canceló la espera» de «no hubo
       espera» (pregunta abierta de `design.md`). Verificación: la respuesta, con el
-      experimento que la sustenta, queda escrita en esta tarea.
-- [ ] 2.2 Si la respuesta es sí: reescribir el test para ejercitar el backoff con
+      **Sí puede.** `ManualClock.sleep` es cancelable —`withTaskCancellationHandler` que
+      resume con `CancellationError`— y expone `waitUntilSleeping()`, que suspende hasta que
+      el bucle registra el `sleep`. Eso ES la premisa observable: «el bucle llegó al
+      backoff», sin suponer nada sobre cuánto tarda la máquina.
+- [x] 2.2 Si la respuesta es sí: reescribir el test para ejercitar el backoff con
       `ManualClock`, avanzándolo a mano, y afirmar sobre la interrupción de la espera en vez
-      de sobre su duración. Verificación: `grep -c ContinuousClock CancellationTests.swift`
-      baja a 0, o cada uso restante lleva su porqué al lado.
-- [ ] 2.3 Si la respuesta es no: **replantear D1 por escrito** antes de tocar el test.
-      Verificación: la alternativa queda en `design.md` con su razón.
-- [ ] 2.4 Sonda: un `RequestRetrier` que no interrumpa la espera debe poner el test rojo.
-      Verificación: rojo con la sonda, verde sin ella.
+      de sobre su duración. **Hecho** con `InMemoryTransport` + `ManualClock`, el mismo
+      patrón que `RetryBehaviorTests`. Quedan 3 `ContinuousClock`, todos en el techo de
+      espera de `waitUntilInFlight`, con su porqué escrito al lado. De paso se fueron el
+      actor `RetryInstantProbe`, la rama de espera fija y un valor de retorno sin uso; la
+      suite del fichero baja de 0,110 s a 0,019 s.
+- [x] 2.3 ~~Si la respuesta es no: replantear D1~~ **No aplica: la respuesta fue sí.**
+- [x] 2.4 Sonda: un `RequestRetrier` que no interrumpa la espera debe poner el test rojo.
+      **Hecho** con una sonda más directa: `ManualClock.sleep` resumiendo normalmente en vez
+      de lanzar `CancellationError`. El test falla por las DOS afirmaciones —llega
+      `httpStatus 500` en vez de `.cancelled`, y hay segundo request—; restaurado, verde.
 
 ## 3. Grupo C — el probe de 5 MB
 
-- [ ] 3.1 Mirar `URLSessionTransport` y responder la pregunta abierta: ¿se puede observar que
+- [x] 3.1 Mirar `URLSessionTransport` y responder la pregunta abierta: ¿se puede observar que
       no itera byte a byte sin tocar la librería? Verificación: la respuesta queda escrita
-      aquí, con el fragmento que la sustenta.
+      **Sí se puede, léxicamente.** La regresión que el test vigila es `for try await` sobre
+      `.bytes(...)` en el transporte, y hoy no hay ninguna ocurrencia en
+      `Sources/CoreNetworking/`. Un chequeo léxico la cazaría sin reloj y sin tocar la
+      librería. Límite honesto: caza ESA forma de lentitud, no «lento por otro motivo».
+      Este paquete no tiene linter léxico propio (no usa `archlint`), así que habría que
+      añadir el chequeo a `Scripts/` o como test que lee el fuente.
 - [ ] 3.2 **Decisión del owner** entre las tres opciones de `design.md` D3, con el dato de
       3.1 encima de la mesa. Cambia qué puede tumbar una publicación, así que no la toma
       quien implementa. Verificación: la opción elegida y su razón quedan escritas.
