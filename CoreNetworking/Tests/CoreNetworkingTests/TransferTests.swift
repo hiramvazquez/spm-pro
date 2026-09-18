@@ -336,18 +336,14 @@ struct TransferTests {
         }
     }
 
-    /// CN-07: `download` iteraba `AsyncBytes` byte a byte (una llamada async
-    /// POR BYTE) — órdenes de magnitud más lento que recibir chunks.
+    /// CN-07: 5 MB viajan enteros por el pipeline. Comprueba CORRECCIÓN —que el payload
+    /// llega completo—, no rendimiento: de eso se ocupa `transportNoIteraBytes()`.
     ///
-    /// El presupuesto depende de dónde corra, porque el suelo de la máquina también:
-    /// en macOS (`swift test`) 5 MB por chunks quedan muy por debajo de 0,2 s, y ese
-    /// límite estrecho es el que de verdad aprieta. En el simulador de un runner de CI
-    /// los MISMOS 5 MB por chunks midieron 3,3 s — la máquina, no el código: ahí el
-    /// bucle byte a byte son 5,2 millones de suspensiones y tarda minutos, así que 20 s
-    /// sigue separando las dos cosas sin margen de duda. Un solo número no puede servir
-    /// a los dos entornos: 0,2 s hacía fallar al simulador con el código bueno, y subir
-    /// el límite a 20 s en todas partes tiraría el guard afilado de macOS a la basura.
-    @Test("data(for:) de 5 MB no es lenta (regresión: nada de 'for try await byte')")
+    /// Antes esto llevaba además un presupuesto de reloj (0,2 s en macOS, 20 s en
+    /// simulador) para detectar la regresión de CN-07. Se retiró: medido el 2026-09-16,
+    /// esos mismos 5 MB tardaron 55 s y 130 s en runners cargados, y el rojo no decía
+    /// nada sobre el código. El presupuesto afirmaba sobre la máquina.
+    @Test("data(for:) de 5 MB llega entero")
     func dataLargePayloadIsFast() async throws {
         let host = "xfer-data-5mb.test"
         let (service, baseURL) = try makeService(host: host)
@@ -363,18 +359,39 @@ struct TransferTests {
             )
         )
 
-        let start = ContinuousClock.now
         let data = try await service.data(for: FileRequest(), progress: nil)
-        let elapsed = start.duration(to: .now)
 
-        #if targetEnvironment(simulator)
-        let budget: Duration = .seconds(20)
-        #else
-        let budget: Duration = .milliseconds(200)
-        #endif
+        #expect(data == payload)
+    }
 
-        #expect(data.count == payload.count)
-        #expect(elapsed < budget, "data(for:) de 5 MB tardó \(elapsed) — ¿volvió el bucle byte a byte?")
+    /// El guard de CN-07, ahora contra el MECANISMO y no contra el reloj: la regresión que
+    /// importa es volver a iterar `AsyncBytes` byte a byte (una llamada async POR BYTE), y
+    /// eso se ve leyendo el transporte. Determinista, instantáneo, y no afirma nada sobre
+    /// la máquina.
+    ///
+    /// LÍMITE, declarado porque estrecharlo en silencio sería peor: caza ESA forma de
+    /// lentitud, no «lento por otro motivo». Un transporte lento por otra causa pasa este
+    /// test — y el presupuesto de reloj que había antes tampoco lo cazaba de forma fiable,
+    /// que es lo que lo retiró.
+    @Test("el transporte no itera bytes: el guard de CN-07, sin reloj")
+    func transportNoIteraBytes() throws {
+        let transporte = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // CoreNetworkingTests
+            .deletingLastPathComponent()  // Tests
+            .deletingLastPathComponent()  // CoreNetworking
+            .appendingPathComponent("Sources/CoreNetworking/Transport")
+        let swift = try FileManager.default
+            .contentsOfDirectory(at: transporte, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "swift" }
+        try #require(!swift.isEmpty, "no encontré las fuentes del transporte en \(transporte.path)")
+
+        for fichero in swift {
+            let fuente = try String(contentsOf: fichero, encoding: .utf8)
+            #expect(
+                !fuente.contains(".bytes("),
+                "\(fichero.lastPathComponent) usa `.bytes(` — CN-07: iterar AsyncBytes es una llamada async por byte"
+            )
+        }
     }
 
     // MARK: - download(to:) — a disco
