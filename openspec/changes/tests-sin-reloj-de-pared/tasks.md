@@ -80,7 +80,8 @@
         segundo request.
       - *la espera queda pendiente e ignora la cancelación*: el `sleep` del producto envuelto en
         un `Task.detached { try? … }`. Antes **colgaba el test para siempre** —el juez lo dejó
-        3 min 28 s y lo mató a mano—. Ahora dos rojos en **~2 s**, los mismos (la cifra de
+        3 min 28 s y lo mató a mano—. Ahora rojo en **~2 s** —hoy tres issues, con el fallo de
+        premisa que añadió la revisión siguiente— (la cifra de
         6,9 s que se anotó antes incluía la compilación; el revisor midió 2,01 s).
       Restaurado en los dos casos, los cinco tests en verde en 0,031 s.
       **Y dos formas más**, que encontró el revisor del arreglo de la ronda 2 y que ese arreglo
@@ -124,7 +125,7 @@
       —20/20— y además tres corridas con 30 procesos quemando CPU en 10 núcleos, que es el
       escenario «la máquina va cargada» de la spec: verdes, 0,095 s. Sobre el árbol final de la
       ronda 2 se han corrido de nuevo (ver «Rondas de aceptación»).
-- [x] 4.2 Una corrida de CI completa en verde, incluido el simulador iOS, que es donde más
+- [ ] 4.2 Una corrida de CI completa en verde, incluido el simulador iOS, que es donde más
       caían. Verificación: el número de run queda escrito aquí.
       **REABIERTA en la ronda 2, y el motivo es un error de hecho mío.** El run
       `35171916164` (2026-09-17T01:47Z, `workflow_dispatch` sobre esta rama) es **22 jobs en
@@ -140,6 +141,9 @@
       antes fue dar por bueno un run de otro commit—. **22 de 22 jobs en verde**, y dentro de
       `CoreNetworking`, `swift test (macOS)` y `xcodebuild test (iOS Simulator)` los dos en
       `success`: el simulador, que es donde más caían estos tests y lo que esta tarea pedía.
+      **Reabierta otra vez, y por el mismo motivo que la primera**: después de ese run llegaron
+      dos arreglos más (`dd91a14` y el siguiente), así que `381c0a4` ya no es el HEAD entregado.
+      Se cierra con un run sobre el HEAD final, lanzado cuando la rama esté empujada.
       Y lo que esta tarea pedía de verdad —el simulador, que es donde más caían— comprobado
       paso a paso y no por el verde del job: dentro de `CoreNetworking`, `swift test (macOS)` y
       `xcodebuild test (iOS Simulator)` los dos en `success`. También verdes `Mínimo soportado`
@@ -237,3 +241,28 @@
   «acotar el veredicto». Medido por él: con terminal imprime el fallo a los 60 s y el proceso
   **sigue vivo**; sin terminal —como en CI— no escribe ni un byte. Daba confianza y no
   terminaba nada. El porqué de que no esté queda escrito junto al guard.
+
+- **Revisión del arreglo del RED — AMBER, no bloquea** (revisor, 2026-09-17). Sin falso verde
+  realista y sin falso rojo, confirmado sobre `dd91a14`: `onCancel` corre síncrono dentro de
+  `task.cancel()`, 2000 de 2000 sin carga y 3 × 2000 con la CPU ocupada. Probó dos variantes más
+  de las cuatro mías —un `withTaskCancellationShield` alrededor del `sleep` da rojo—.
+
+  Lo que deja es el **mapa de lo que el test no ve**, y queda escrito en el código junto al
+  guard: solo escapa lo que espera FUERA del reloj inyectado. Si esa espera es finita, sale
+  verde (un segundo reloj dentro del producto: teórico, el test observa el reloj inyectado por
+  diseño). Si es infinita, se cuelga (un producto que traga la cancelación y vuelve a dormir
+  hasta el deadline: la cancelación sí llega a la primera espera, así que el guard no dispara).
+
+  Sobre ese cuelgue: quitar el `.timeLimit` pierde una señal pequeña —en una terminal local
+  imprimiría el nombre del test a los 60 s—, y en CI no se pierde nada, porque con la salida a un
+  pipe no escribe un byte. **No se devuelve el trait**: sería un cambio de código y otra pasada
+  obligatoria para ganar una línea en una terminal local. Se declara como límite, que es lo que
+  es. El comentario que decía «no sirve aquí» a secas se precisó: no aporta nada en los casos que
+  el guard cubre.
+
+  Fuera de alcance, y anotado para quien lo retome: `TaskDelegateTests.swift:451-456` sigue
+  prometiendo que `.timeLimit` convierte un cuelgue en «un fallo con nombre en segundos», que es
+  la misma creencia que este cambio ha corregido; y `ManualClock.swift:72-88` tiene una carrera
+  preexistente —una cancelación entre `checkCancellation()` y la instalación del handler deja al
+  durmiente dentro para siempre— que aquí es inalcanzable porque se cancela con el durmiente ya
+  visible.

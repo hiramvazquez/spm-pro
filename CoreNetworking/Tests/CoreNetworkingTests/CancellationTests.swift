@@ -286,10 +286,17 @@ struct CancellationTests {
         // TERMINE. Con un reloj manual, una espera pendiente que nadie interrumpe ni avanza es
         // infinita, y `await task.result` colgaría el test para siempre.
         //
-        // Por qué no hay `.timeLimit`, aunque `TaskDelegateTests` lo use: medido, no sirve aquí.
-        // En Swift Testing el límite es cooperativo y no interrumpe un `await` que ignora la
-        // cancelación; con terminal imprime el fallo a los 60 s y el proceso sigue vivo, y sin
-        // terminal —como en CI— no escribe ni un byte.
+        // Por qué no hay `.timeLimit`, aunque `TaskDelegateTests` lo use: en Swift Testing el
+        // límite es cooperativo y no interrumpe un `await` que ignora la cancelación. Con terminal
+        // imprime el fallo a los 60 s y el proceso sigue vivo; sin terminal —como en CI— no
+        // escribe ni un byte. Para los casos que cubre este guard, no aporta nada.
+        //
+        // LO QUE ESTE TEST NO VE, medido por el revisor. Solo escapa lo que espera FUERA del
+        // reloj inyectado: si esa espera es finita, sale verde —un producto con un segundo reloj
+        // propio—; si es infinita, se cuelga —un producto que traga la cancelación y vuelve a
+        // dormir hasta el deadline: la cancelación sí llega a la primera espera, así que este
+        // guard no dispara—. En ese segundo caso `.timeLimit` solo imprimiría el nombre del test
+        // en una terminal local; en CI, nada.
         if await esperaSenal(timeout: .seconds(2), { clock.pendingDeadlines.isEmpty }) == false {
             Issue.record(
                 "la cancelación no llegó a la espera del backoff: el durmiente sigue en el reloj tras cancelar el Task"
