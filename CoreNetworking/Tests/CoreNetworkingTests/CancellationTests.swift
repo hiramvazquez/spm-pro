@@ -236,18 +236,7 @@ struct CancellationTests {
     ///
     /// Con `InMemoryTransport` en vez de `MockURLProtocol` porque aquí no se prueba el URL
     /// loading system, se prueba el bucle de reintento — mismo patrón que `RetryBehaviorTests`.
-    // `.timeLimit`: el techo de `waitUntilBackoffSleeping` acota la PREMISA —que alguien llegue
-    // a dormir—, y esto acota el VEREDICTO. Con `ManualClock` una espera que queda pendiente y
-    // nadie interrumpe es infinita: no hay cota natural, a diferencia del reloj real, donde un
-    // backoff de 5 s se resolvía solo. Sin este trait, blindar el `sleep` del producto frente a
-    // la cancelación deja el test colgado sin una línea de salida —medido por el juez: 3 min
-    // 28 s y matado a mano— y en CI se come el timeout del job, que este workflow no fija.
-    // Es el mismo motivo por el que `TaskDelegateTests` lo pone en su test del
-    // `completionHandler`, y lo deja escrito igual.
-    @Test(
-        "cancelar durante el backoff del retry → .cancelled sin segundo request",
-        .timeLimit(.minutes(1))
-    )
+    @Test("cancelar durante el backoff del retry → .cancelled sin segundo request")
     func cancelDuringBackoff() async throws {
         let baseURL = try #require(URL(string: "https://cancel-backoff.test"))
         let transport = InMemoryTransport()
@@ -279,18 +268,32 @@ struct CancellationTests {
         }
         task.cancel()
 
-        // `onCancel` de `ManualClock.sleep` RETIRA al durmiente de la lista, así que la lista
-        // vacía es la señal de que la cancelación llegó a la espera. Si sigue ahí pasado el
-        // techo, la espera NO se interrumpió — y entonces `await task.result` colgaría el test
-        // para siempre: con un reloj manual, una espera pendiente que nadie interrumpe ni avanza
-        // es infinita, a diferencia del reloj real, donde un backoff de 5 s se resolvía solo.
-        // Avanzar el reloj la desbloquea y deja que el test JUZGUE: el segundo request que eso
-        // provoca es justo el rojo que este test busca.
+        // `onCancel` de `ManualClock.sleep` RETIRA al durmiente de la lista, y lo hace de forma
+        // síncrona dentro de `task.cancel()`: medido por el revisor, 2000 de 2000 corridas sin
+        // carga y 300 de 300 con carga media ~75 en 10 núcleos, la lista vacía en cuanto
+        // `cancel()` vuelve. Así que la lista vacía ES la señal de que la cancelación llegó a la
+        // espera, y el techo de 2 s no se gasta nunca en el camino correcto: no decide nada por
+        // reloj. Solo cubre un futuro en que el producto mandara la cancelación a la espera por
+        // un `Task` no estructurado o un salto de actor.
         //
-        // `.timeLimit` no cubre esto, y está medido: en Swift Testing el límite es cooperativo y
-        // no interrumpe un `await` que ignora la cancelación. Con el trait puesto y el `sleep`
-        // del producto blindado, el test seguía colgado pasados 600 s.
+        // Si el durmiente SIGUE ahí, la espera no se interrumpió, y eso ES el defecto que este
+        // test existe para cazar: se registra, y no se deja al resto del test decidirlo. Se
+        // aprendió por las malas: sin el `Issue.record`, un producto que no interrumpe la espera
+        // pero mira `Task.isCancelled` después salía en VERDE —lo reprodujo el revisor de dos
+        // formas—, porque el código de error y el número de requests salen bien igual.
+        //
+        // El `advance` que va detrás no decide nada: desbloquea el reloj para que el test
+        // TERMINE. Con un reloj manual, una espera pendiente que nadie interrumpe ni avanza es
+        // infinita, y `await task.result` colgaría el test para siempre.
+        //
+        // Por qué no hay `.timeLimit`, aunque `TaskDelegateTests` lo use: medido, no sirve aquí.
+        // En Swift Testing el límite es cooperativo y no interrumpe un `await` que ignora la
+        // cancelación; con terminal imprime el fallo a los 60 s y el proceso sigue vivo, y sin
+        // terminal —como en CI— no escribe ni un byte.
         if await esperaSenal(timeout: .seconds(2), { clock.pendingDeadlines.isEmpty }) == false {
+            Issue.record(
+                "la cancelación no llegó a la espera del backoff: el durmiente sigue en el reloj tras cancelar el Task"
+            )
             clock.advance(by: backoff * 2)
         }
 

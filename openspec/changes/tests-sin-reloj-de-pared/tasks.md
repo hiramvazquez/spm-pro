@@ -80,8 +80,14 @@
         segundo request.
       - *la espera queda pendiente e ignora la cancelación*: el `sleep` del producto envuelto en
         un `Task.detached { try? … }`. Antes **colgaba el test para siempre** —el juez lo dejó
-        3 min 28 s y lo mató a mano—. Ahora dos rojos en **6,9 s**, los mismos.
+        3 min 28 s y lo mató a mano—. Ahora dos rojos en **~2 s**, los mismos (la cifra de
+        6,9 s que se anotó antes incluía la compilación; el revisor midió 2,01 s).
       Restaurado en los dos casos, los cinco tests en verde en 0,031 s.
+      **Y dos formas más**, que encontró el revisor del arreglo de la ronda 2 y que ese arreglo
+      dejaba en **VERDE** —un falso verde, en el cambio que existe para quitar rojos falsos—: la
+      espera blindada seguida de un `Task.checkCancellation()`, y la espera blindada con un
+      `if Task.isCancelled { throw … }` al entrar al bucle de reintento. Ahora las cuatro dan
+      rojo sin colgarse, y el producto sin tocar sale verde 100 de 100 veces.
 
 ## 3. Grupo C — el probe de 5 MB
 
@@ -189,16 +195,45 @@
   cancelar, si el durmiente sigue en `pendingDeadlines` pasado un techo de 2 s, la cancelación no
   llegó a la espera, y `clock.advance(by:)` la desbloquea para que el test pueda JUZGAR en vez de
   colgarse. El segundo request que eso provoca es justo el rojo que la tarea 2.4 promete.
-  **Medido**: 2 rojos en 6,9 s con esa amputación; 2 rojos en 0,008 s con la otra; los cinco
+  **Medido**: 2 rojos en ~2 s con esa amputación (anoté 6,9 s: incluía la compilación); 2 rojos en 0,008 s con la otra; los cinco
   tests en verde sin amputar y la suite entera —244 tests— verde.
 
   De paso, un hallazgo suyo de información: el esqueleto del bucle de sondeo estaba escrito tres
   veces. Las dos copias de este fichero pasan ahora por `esperaSenal`; la tercera vive en otro
   target (`MockURLProtocol.waitForCancelledDelivery`) y no se toca aquí.
 
-  Veinte corridas de  sobre el árbol final de esta ronda: **20/20
+  Veinte corridas de `swift test --parallel` sobre el árbol final de esta ronda: **20/20
   verdes**, que es el criterio de la tarea 4.1 re-medido sobre lo que de verdad se entrega.
 
   Sus dos errores de hecho en mi texto, corregidos arriba: las 20 corridas de la 4.1 eran del
   árbol anterior a los arreglos, y la 4.2 afirmaba que el run era del HEAD entregado cuando ya no
   lo era — esa tarea queda **reabierta**.
+
+- **Revisión del arreglo de la ronda 2 — RED** (revisor, 2026-09-17). Obligatoria: el requisito
+  «No se archiva sobre el arreglo de un juicio que no ha visto ningún revisor» impide archivar
+  sobre un arreglo que cambia lo que el código hace, y el de la ronda 2 no lo había visto nadie
+  —ni siquiera el juez, porque no era el que él propuso—.
+
+  **Y encontró un falso verde que ese arreglo había abierto.** La rama que desbloquea el reloj
+  no registraba ningún fallo: el comentario decía «la espera NO se interrumpió» y el test lo
+  sabía y no lo decía, y luego solo miraba el código de error y el número de requests. Un
+  producto que no interrumpe la espera pero mira la cancelación DESPUÉS sale bien en esas dos
+  cosas, así que salía en verde — reproducido de dos formas, las dos en ~2 s. Antes de ese
+  arreglo esas variantes colgaban el test; con él, **pasaban**. Es decir: arreglar el cuelgue
+  había convertido un fallo ruidoso en uno silencioso.
+
+  Arreglado con una línea: la rama registra el fallo —«la cancelación no llegó a la espera del
+  backoff»— antes de avanzar el reloj, y el `advance` queda solo para que el test termine.
+  **Medido**: las cuatro formas de «no se interrumpió» dan rojo sin colgarse —3, 1, 1 y 2
+  issues—, las fuentes quedan intactas, y el producto sin tocar sale verde **100 de 100**;
+  suite entera en verde tres veces.
+
+  El falso rojo que yo temía **no es alcanzable**, y lo midió él: `onCancel` corre de forma
+  síncrona dentro de `task.cancel()`, así que la lista queda vacía en cuanto `cancel()` vuelve
+  —2000 de 2000 sin carga, 300 de 300 con carga media ~75—. El techo de 2 s no se gasta nunca
+  en el camino correcto y no decide nada por reloj.
+
+  **Y se retiró el `.timeLimit`**, que yo había dejado con un comentario encima que prometía
+  «acotar el veredicto». Medido por él: con terminal imprime el fallo a los 60 s y el proceso
+  **sigue vivo**; sin terminal —como en CI— no escribe ni un byte. Daba confianza y no
+  terminaba nada. El porqué de que no esté queda escrito junto al guard.
