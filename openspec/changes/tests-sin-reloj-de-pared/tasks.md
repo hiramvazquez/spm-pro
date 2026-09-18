@@ -21,6 +21,13 @@
       **Hecho**: `expectCancelled(inFlight:)` espera a que el mock registre la petición
       (`recordedRequests`, que ya era público) y solo entonces cancela. Los dos mensajes son
       distintos: «no pude poner la petición en vuelo» vs «esperaba .cancelled».
+      *Corregido en la ronda 1 del juicio*: el mensaje era distinto, pero no era el único.
+      `expectCancelledAndTornDown` seguía afirmando el desmontaje aunque la premisa hubiera
+      fallado, así que salía un SEGUNDO rojo —«la transferencia siguió viva tras cancelar el
+      Task»— acusando al sistema de algo que nunca se ejercitó, que es justo lo que el
+      escenario de la spec prohíbe. Ahora `expectCancelled` devuelve si la premisa se
+      estableció y el desmontaje solo se afirma si se estableció. Medido amputando el registro
+      del mock: **un** rojo, el de la premisa.
 - [x] 1.5 Sonda: amputar la cancelación en el transporte y comprobar que los cuatro se ponen
       rojos por el comportamiento, no por la premisa. Verificación: los cuatro fallan con el
       mensaje de comportamiento; restaurado, vuelven a verde.
@@ -42,15 +49,26 @@
 
 - [x] 2.1 Comprobar si `ManualClock` permite distinguir «se canceló la espera» de «no hubo
       espera» (pregunta abierta de `design.md`). Verificación: la respuesta, con el
-      **Sí puede.** `ManualClock.sleep` es cancelable —`withTaskCancellationHandler` que
-      resume con `CancellationError`— y expone `waitUntilSleeping()`, que suspende hasta que
-      el bucle registra el `sleep`. Eso ES la premisa observable: «el bucle llegó al
-      backoff», sin suponer nada sobre cuánto tarda la máquina.
+      **Sí puede, pero no con `waitUntilSleeping()` a secas** —corregido en la ronda 1 del
+      juicio, ver «Rondas de aceptación» al final—. `ManualClock.sleep` es cancelable
+      —`withTaskCancellationHandler` que resume con `CancellationError`— y el reloj expone
+      `waitUntilSleeping()`, que suspende hasta que el bucle registra el `sleep`. Con eso se
+      distingue «se canceló la espera» (verde) de «la espera no se interrumpió» (rojo, sonda
+      2.4).
+      Lo que NO distingue es el tercer caso, que es el que importaba: **«no hubo espera»**.
+      Si nadie llega a dormir, `waitUntilSleeping()` no vuelve nunca y el test **se cuelga en
+      vez de fallar**. La señal que sí sirve es `pendingDeadlines`, que se puede consultar con
+      un techo, y así se hizo: `waitUntilBackoffSleeping` espera a esa señal con un
+      `ContinuousClock` de techo —10 s— y, si no llega, el test falla diciendo que no pudo
+      establecer su premisa.
 - [x] 2.2 Si la respuesta es sí: reescribir el test para ejercitar el backoff con
       `ManualClock`, avanzándolo a mano, y afirmar sobre la interrupción de la espera en vez
       de sobre su duración. **Hecho** con `InMemoryTransport` + `ManualClock`, el mismo
-      patrón que `RetryBehaviorTests`. Quedan 3 `ContinuousClock`, todos en el techo de
-      espera de `waitUntilInFlight`, con su porqué escrito al lado. De paso se fueron el
+      patrón que `RetryBehaviorTests`. Quedan 6 `ContinuousClock`, todos en un techo de
+      espera y con su porqué escrito al lado: 3 en `waitUntilInFlight` y —desde la ronda 1 del
+      juicio— 3 en `waitUntilBackoffSleeping`, que es el techo que impide que el test se cuelgue
+      cuando no hay espera. La anotación decía «3» y se quedó vieja al añadir el segundo techo;
+      el criterio los admite porque ninguno decide el veredicto, solo acota la premisa. De paso se fueron el
       actor `RetryInstantProbe`, la rama de espera fija y un valor de retorno sin uso; la
       suite del fichero baja de 0,110 s a 0,019 s.
 - [x] 2.3 ~~Si la respuesta es no: replantear D1~~ **No aplica: la respuesta fue sí.**
@@ -84,6 +102,44 @@
       **20/20 verdes** con `swift test --parallel` en `CoreNetworking/`, 2026-09-16, sobre
       el árbol de este cambio. (Veinte verdes no prueban que no queden inestabilidades;
       acotan.)
-- [ ] 4.2 Una corrida de CI completa en verde, incluido el simulador iOS, que es donde más
+- [x] 4.2 Una corrida de CI completa en verde, incluido el simulador iOS, que es donde más
       caían. Verificación: el número de run queda escrito aquí.
+      **Hecho**: run `35171916164` (2026-09-17T01:47Z, `workflow_dispatch` sobre esta rama),
+      sobre `eae8907`, que es el HEAD del cambio. **22 jobs, los 22 en verde.**
+      Y lo que esta tarea pedía de verdad —el simulador, que es donde más caían— comprobado
+      paso a paso y no por el verde del job: dentro de `CoreNetworking`, `swift test (macOS)` y
+      `xcodebuild test (iOS Simulator)` los dos en `success`. También verdes `Mínimo soportado`
+      y `Tests en el mínimo ejecutable` de los dos paquetes, que son los que validan el
+      toolchain que promete el README.
 - [x] 4.3 `/kit-verifica` en verde.
+
+## Rondas de aceptación
+
+- **Ronda 1 — DEVUELTO** (juez, 2026-09-17). Motivo, y era grave: el test del backoff esperaba
+  con `await clock.waitUntilSleeping()` **sin techo, sin mensaje de premisa y sin `.timeLimit`**.
+  El juez amputó el `clock.sleep` del producto (`APIService.swift:369`) y el proceso siguió vivo
+  **32 minutos** sin una línea de salida, parado en `swift_task_asyncMainDrainQueue`; lo mató él.
+  En CI no lo mata nadie: `.github/workflows/ci.yml` no fija `timeout-minutes`, así que serían
+  las seis horas por defecto del job y sin decir por qué.
+
+  Por qué no era una pega de estilo, con sus tres razones:
+  1. **La versión anterior sí fallaba limpio ahí.** Este cambio borró el
+     `#require(await probe.decidedAt, "el bucle no llegó a decidir el reintento…")`, que es
+     literalmente el riesgo que `design.md` puso por escrito: «que al quitar el reloj el test
+     deje de detectar lo que detectaba».
+  2. **La pregunta abierta de D1 era esta misma**, y la tarea 2.1 la cerró con un «sí puede»
+     que la entrega no sostenía. Corregida arriba.
+  3. **El paquete ya tenía el idiom y su razón escrita**, en el mismo target:
+     `TaskDelegateTests.swift:451-456` pone `.timeLimit` precisamente porque «este test se
+     COLGARÍA en vez de fallar — en CI eso se come el timeout del job entero y no dice por qué».
+
+  Arreglado reusando lo que el fichero ya tenía, sin maquinaria nueva:
+  `waitUntilBackoffSleeping` sondea `ManualClock.pendingDeadlines` con un techo de
+  `ContinuousClock`, igual que `waitUntilInFlight` hace con `recordedRequests`, y si no llega la
+  señal el test falla con «el bucle no llegó a dormir el backoff».
+  **Medido en los dos sentidos**: con el `clock.sleep` amputado, el test falla en **10,005 s**
+  con ese mensaje —antes, 32 minutos colgado—; restaurado, los cinco del fichero en verde en
+  0,018 s. Y la suite entera, 244 tests, verde en tres corridas seguidas.
+
+  El segundo hallazgo de esa ronda —el doble rojo del grupo B— está corregido y anotado en la
+  tarea 1.4.
