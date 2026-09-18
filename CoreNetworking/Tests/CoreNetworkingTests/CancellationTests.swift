@@ -65,12 +65,29 @@ struct CancellationTests {
         url: URL,
         timeout: Duration = .seconds(10)
     ) async -> Bool {
-        let deadline = ContinuousClock.now + timeout
-        while true {
-            let visto = MockURLProtocol.recordedRequests.contains {
+        await esperaSenal(timeout: timeout) {
+            MockURLProtocol.recordedRequests.contains {
                 $0.url == url && ($0.httpMethod ?? "GET").caseInsensitiveCompare(method.rawValue) == .orderedSame
             }
-            if visto { return true }
+        }
+    }
+
+    /// Sondea una señal observable con un techo de reloj real. Devuelve si llegó.
+    ///
+    /// UN solo esqueleto para las tres esperas de este fichero: el juez de la ronda 2 contó que
+    /// el bucle estaba escrito tres veces —aquí, en el techo del backoff y en
+    /// `MockURLProtocol.waitForCancelledDelivery`— y tenía razón. Las dos de este fichero pasan
+    /// por aquí; la del mock vive en otro target.
+    ///
+    /// El `ContinuousClock` NO decide ningún veredicto: acota cuánto se espera a una premisa.
+    /// Quien llama convierte el `false` en un fallo que dice qué premisa no se estableció.
+    private func esperaSenal(
+        timeout: Duration = .seconds(10),
+        _ cumplida: () -> Bool
+    ) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while true {
+            if cumplida() { return true }
             if ContinuousClock.now >= deadline { return false }
             try? await Task.sleep(for: .milliseconds(5))
         }
@@ -92,12 +109,7 @@ struct CancellationTests {
         _ clock: ManualClock,
         timeout: Duration = .seconds(10)
     ) async -> Bool {
-        let deadline = ContinuousClock.now + timeout
-        while true {
-            if !clock.pendingDeadlines.isEmpty { return true }
-            if ContinuousClock.now >= deadline { return false }
-            try? await Task.sleep(for: .milliseconds(5))
-        }
+        await esperaSenal(timeout: timeout) { !clock.pendingDeadlines.isEmpty }
     }
 
     /// Lanza `body`, lo cancela y comprueba que sale por `.cancelled`.
@@ -224,7 +236,18 @@ struct CancellationTests {
     ///
     /// Con `InMemoryTransport` en vez de `MockURLProtocol` porque aquí no se prueba el URL
     /// loading system, se prueba el bucle de reintento — mismo patrón que `RetryBehaviorTests`.
-    @Test("cancelar durante el backoff del retry → .cancelled sin segundo request")
+    // `.timeLimit`: el techo de `waitUntilBackoffSleeping` acota la PREMISA —que alguien llegue
+    // a dormir—, y esto acota el VEREDICTO. Con `ManualClock` una espera que queda pendiente y
+    // nadie interrumpe es infinita: no hay cota natural, a diferencia del reloj real, donde un
+    // backoff de 5 s se resolvía solo. Sin este trait, blindar el `sleep` del producto frente a
+    // la cancelación deja el test colgado sin una línea de salida —medido por el juez: 3 min
+    // 28 s y matado a mano— y en CI se come el timeout del job, que este workflow no fija.
+    // Es el mismo motivo por el que `TaskDelegateTests` lo pone en su test del
+    // `completionHandler`, y lo deja escrito igual.
+    @Test(
+        "cancelar durante el backoff del retry → .cancelled sin segundo request",
+        .timeLimit(.minutes(1))
+    )
     func cancelDuringBackoff() async throws {
         let baseURL = try #require(URL(string: "https://cancel-backoff.test"))
         let transport = InMemoryTransport()
@@ -255,6 +278,21 @@ struct CancellationTests {
             return
         }
         task.cancel()
+
+        // `onCancel` de `ManualClock.sleep` RETIRA al durmiente de la lista, así que la lista
+        // vacía es la señal de que la cancelación llegó a la espera. Si sigue ahí pasado el
+        // techo, la espera NO se interrumpió — y entonces `await task.result` colgaría el test
+        // para siempre: con un reloj manual, una espera pendiente que nadie interrumpe ni avanza
+        // es infinita, a diferencia del reloj real, donde un backoff de 5 s se resolvía solo.
+        // Avanzar el reloj la desbloquea y deja que el test JUZGUE: el segundo request que eso
+        // provoca es justo el rojo que este test busca.
+        //
+        // `.timeLimit` no cubre esto, y está medido: en Swift Testing el límite es cooperativo y
+        // no interrumpe un `await` que ignora la cancelación. Con el trait puesto y el `sleep`
+        // del producto blindado, el test seguía colgado pasados 600 s.
+        if await esperaSenal(timeout: .seconds(2), { clock.pendingDeadlines.isEmpty }) == false {
+            clock.advance(by: backoff * 2)
+        }
 
         switch await task.result {
         case .success:

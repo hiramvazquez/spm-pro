@@ -73,9 +73,15 @@
       suite del fichero baja de 0,110 s a 0,019 s.
 - [x] 2.3 ~~Si la respuesta es no: replantear D1~~ **No aplica: la respuesta fue sí.**
 - [x] 2.4 Sonda: un `RequestRetrier` que no interrumpa la espera debe poner el test rojo.
-      **Hecho** con una sonda más directa: `ManualClock.sleep` resumiendo normalmente en vez
-      de lanzar `CancellationError`. El test falla por las DOS afirmaciones —llega
-      `httpStatus 500` en vez de `.cancelled`, y hay segundo request—; restaurado, verde.
+      **Hecho**, y en las DOS formas que tiene «no se interrumpió» —la segunda la encontró el
+      juez en la ronda 2, y era la que faltaba—:
+      - *la espera resume normalmente*: `ManualClock.sleep` resumiendo sin lanzar
+        `CancellationError`. Dos rojos: llega `httpStatus 500` en vez de `.cancelled`, y hay
+        segundo request.
+      - *la espera queda pendiente e ignora la cancelación*: el `sleep` del producto envuelto en
+        un `Task.detached { try? … }`. Antes **colgaba el test para siempre** —el juez lo dejó
+        3 min 28 s y lo mató a mano—. Ahora dos rojos en **6,9 s**, los mismos.
+      Restaurado en los dos casos, los cinco tests en verde en 0,031 s.
 
 ## 3. Grupo C — el probe de 5 MB
 
@@ -87,6 +93,11 @@
       librería. Límite honesto: caza ESA forma de lentitud, no «lento por otro motivo».
       Este paquete no tiene linter léxico propio (no usa `archlint`), así que habría que
       añadir el chequeo a `Scripts/` o como test que lee el fuente.
+      *Límite de alcance, añadido en la ronda 2 con el dato del juez*: el guard escanea
+      `Sources/CoreNetworking/Transport/`, y la regresión CN-07 vivía históricamente en
+      `APIService.swift` (`session.bytes(for:)`). Hoy ese código está en `Transport/`, así que
+      el alcance es correcto **hoy**; una reaparición fuera de ese directorio no la vería.
+      Ensancharlo a todo `Sources/` es otra decisión y no entra aquí.
 - [x] 3.2 **Decisión del owner** entre las tres opciones de `design.md` D3, con el dato de
       3.1 encima de la mesa. Cambia qué puede tumbar una publicación, así que no la toma
       **Elegida: el chequeo léxico** (2026-09-16), con el dato de 3.1 encima de la mesa:
@@ -102,10 +113,22 @@
       **20/20 verdes** con `swift test --parallel` en `CoreNetworking/`, 2026-09-16, sobre
       el árbol de este cambio. (Veinte verdes no prueban que no queden inestabilidades;
       acotan.)
-- [x] 4.2 Una corrida de CI completa en verde, incluido el simulador iOS, que es donde más
+      *Corregido en la ronda 2*: esas veinte eran del árbol **anterior** a los arreglos de las
+      dos rondas, así que ya no describían lo entregado. El juez las re-midió sobre `fc673df`
+      —20/20— y además tres corridas con 30 procesos quemando CPU en 10 núcleos, que es el
+      escenario «la máquina va cargada» de la spec: verdes, 0,095 s. Sobre el árbol final de la
+      ronda 2 se han corrido de nuevo (ver «Rondas de aceptación»).
+- [ ] 4.2 Una corrida de CI completa en verde, incluido el simulador iOS, que es donde más
       caían. Verificación: el número de run queda escrito aquí.
-      **Hecho**: run `35171916164` (2026-09-17T01:47Z, `workflow_dispatch` sobre esta rama),
-      sobre `eae8907`, que es el HEAD del cambio. **22 jobs, los 22 en verde.**
+      **REABIERTA en la ronda 2, y el motivo es un error de hecho mío.** El run
+      `35171916164` (2026-09-17T01:47Z, `workflow_dispatch` sobre esta rama) es **22 jobs en
+      verde**, pero corrió sobre `eae8907`, que **ya no es el HEAD del cambio**: los arreglos de
+      las dos rondas son `fc673df` y el siguiente. Yo escribí que `eae8907` era el HEAD, y lo
+      era cuando lo escribí. El commit entregado no ha pasado por CI todavía.
+      Lo que sí está medido mientras eso llega: el juez corrió a mano `xcodebuild test` en
+      iPhone 18 Pro / iOS 27.0 sobre `fc673df` —**241 tests verdes en 1,173 s**—, que es la
+      sustancia que esta tarea persigue; y la suite entera en local, verde, sobre el árbol final.
+      Queda pendiente el número del run del HEAD entregado, que es lo que esta tarea pide.
       Y lo que esta tarea pedía de verdad —el simulador, que es donde más caían— comprobado
       paso a paso y no por el verde del job: dentro de `CoreNetworking`, `swift test (macOS)` y
       `xcodebuild test (iOS Simulator)` los dos en `success`. También verdes `Mínimo soportado`
@@ -143,3 +166,34 @@
 
   El segundo hallazgo de esa ronda —el doble rojo del grupo B— está corregido y anotado en la
   tarea 1.4.
+
+- **Ronda 2 — DEVUELTO** (juez, 2026-09-17). Y con razón otra vez: el arreglo de la ronda 1 puso
+  techo a la **premisa** —que alguien llegue a dormir— y dejó sin techo el **veredicto**. El juez
+  amputó la otra forma de «la espera no se interrumpe» —blindar el `sleep` del producto frente a
+  la cancelación— y el test se colgó igual: 3 min 28 s, matado a mano. Con `ManualClock` una
+  espera pendiente que nadie interrumpe ni avanza es infinita; con el reloj real, un backoff de
+  5 s se resolvía solo. Esa instancia no la introdujo la ronda 1: venía de `0dfc08f`, una línea
+  más abajo.
+
+  **Y su arreglo propuesto no funciona, medido.** El juez sugería «una línea: el trait
+  `.timeLimit`». Lo puse, repetí su amputación, y el test **seguía colgado pasados 600 s**: en
+  Swift Testing el límite es cooperativo y no interrumpe un `await` que ignora la cancelación.
+  Queda escrito en el código, junto al guard que sí funciona, para que nadie lo vuelva a intentar.
+
+  Lo que cierra el caso es que el test **desbloquee el reloj que él mismo controla**: tras
+  cancelar, si el durmiente sigue en `pendingDeadlines` pasado un techo de 2 s, la cancelación no
+  llegó a la espera, y `clock.advance(by:)` la desbloquea para que el test pueda JUZGAR en vez de
+  colgarse. El segundo request que eso provoca es justo el rojo que la tarea 2.4 promete.
+  **Medido**: 2 rojos en 6,9 s con esa amputación; 2 rojos en 0,008 s con la otra; los cinco
+  tests en verde sin amputar y la suite entera —244 tests— verde.
+
+  De paso, un hallazgo suyo de información: el esqueleto del bucle de sondeo estaba escrito tres
+  veces. Las dos copias de este fichero pasan ahora por `esperaSenal`; la tercera vive en otro
+  target (`MockURLProtocol.waitForCancelledDelivery`) y no se toca aquí.
+
+  Veinte corridas de  sobre el árbol final de esta ronda: **20/20
+  verdes**, que es el criterio de la tarea 4.1 re-medido sobre lo que de verdad se entrega.
+
+  Sus dos errores de hecho en mi texto, corregidos arriba: las 20 corridas de la 4.1 eran del
+  árbol anterior a los arreglos, y la 4.2 afirmaba que el run era del HEAD entregado cuando ya no
+  lo era — esa tarea queda **reabierta**.
