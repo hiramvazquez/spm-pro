@@ -76,7 +76,34 @@ struct CancellationTests {
         }
     }
 
+    /// Espera a que el bucle de reintento haya llegado a DORMIR el backoff en el reloj manual.
+    ///
+    /// `pendingDeadlines` es la señal observable de que alguien duerme en ese reloj, y el
+    /// `ContinuousClock` de aquí es un TECHO, igual que en `waitUntilInFlight`: si nadie llega a
+    /// dormir, el test falla diciendo que no pudo establecer su premisa.
+    ///
+    /// Sin este techo, `ManualClock.waitUntilSleeping()` no vuelve NUNCA cuando nadie duerme, y
+    /// el test se CUELGA en vez de fallar. No es teórico: el juez amputó el `clock.sleep` del
+    /// producto y el proceso siguió vivo 32 minutos sin una línea de salida. En CI no lo mata
+    /// nadie —este workflow no fija `timeout-minutes`—, así que serían las seis horas por
+    /// defecto del job, y sin decir por qué. Es el mismo motivo por el que
+    /// `TaskDelegateTests` pone `.timeLimit` en su test del `completionHandler`.
+    private func waitUntilBackoffSleeping(
+        _ clock: ManualClock,
+        timeout: Duration = .seconds(10)
+    ) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while true {
+            if !clock.pendingDeadlines.isEmpty { return true }
+            if ContinuousClock.now >= deadline { return false }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+    }
+
     /// Lanza `body`, lo cancela y comprueba que sale por `.cancelled`.
+    ///
+    /// Devuelve si la PREMISA se estableció —la petición llegó a estar en vuelo—, para que
+    /// quien encadene más afirmaciones no acuse al sistema de algo que no se ejercitó.
     ///
     /// Con `inFlight`, espera a que la petición esté EN VUELO antes de cancelar. Dormir un
     /// rato fijo y confiar en llegar a tiempo era una carrera contra
@@ -86,10 +113,11 @@ struct CancellationTests {
     /// (`APIError(code: transport, underlying: URLError(-1001))`) y se reprodujo en local
     /// bajando ese techo a 0,3 s.
     ///
+    @discardableResult
     private func expectCancelled(
         inFlight: (method: HTTPMethod, url: URL),
         _ body: @escaping @Sendable () async throws -> Void
-    ) async {
+    ) async -> Bool {
         let task = Task {
             try await body()
         }
@@ -100,7 +128,7 @@ struct CancellationTests {
             Issue.record(
                 "no pude poner la petición en vuelo: el mock nunca registró \(inFlight.method.rawValue) \(inFlight.url). Sin esa premisa este test no afirma nada sobre la cancelación"
             )
-            return
+            return false
         }
         task.cancel()
 
@@ -113,6 +141,7 @@ struct CancellationTests {
             let apiError = error as? APIError
             #expect(apiError?.code == .cancelled, "esperaba .cancelled, llegó \(error)")
         }
+        return true
     }
 
     /// Cancela y además exige que el mock haya visto cancelada su entrega pendiente:
@@ -123,7 +152,11 @@ struct CancellationTests {
         method: HTTPMethod = .get,
         _ body: @escaping @Sendable () async throws -> Void
     ) async {
-        await expectCancelled(inFlight: (method, url), body)
+        // Si la premisa falló, `expectCancelled` ya lo dijo con su mensaje: seguir aquí añadiría
+        // un segundo rojo —«la transferencia siguió viva»— acusando al sistema de un
+        // comportamiento que nunca se llegó a ejercitar, que es justo lo que el escenario de la
+        // spec prohíbe.
+        guard await expectCancelled(inFlight: (method, url), body) else { return }
         let tornDown = await MockURLProtocol.waitForCancelledDelivery(method: method, url: url)
         #expect(
             tornDown,
@@ -211,8 +244,16 @@ struct CancellationTests {
             try await service.execute(SlowRequest())
         }
         // Premisa: el bucle llegó a dormir el backoff. Sin esto, cancelar antes de tiempo
-        // haría pasar el test sin haber ejercitado ninguna espera.
-        await clock.waitUntilSleeping()
+        // haría pasar el test sin haber ejercitado ninguna espera — y sin el techo, no haber
+        // espera colgaba el test en vez de ponerlo rojo.
+        guard await waitUntilBackoffSleeping(clock) else {
+            task.cancel()
+            _ = await task.result
+            Issue.record(
+                "el bucle no llegó a dormir el backoff: sin espera que cancelar, este test no mide nada"
+            )
+            return
+        }
         task.cancel()
 
         switch await task.result {
