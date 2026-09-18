@@ -118,7 +118,7 @@
       —20/20— y además tres corridas con 30 procesos quemando CPU en 10 núcleos, que es el
       escenario «la máquina va cargada» de la spec: verdes, 0,095 s. Sobre el árbol final de la
       ronda 2 se han corrido de nuevo (ver «Rondas de aceptación»).
-- [ ] 4.2 Una corrida de CI completa en verde, incluido el simulador iOS, que es donde más
+- [x] 4.2 Una corrida de CI completa en verde, incluido el simulador iOS, que es donde más
       caían. Verificación: el número de run queda escrito aquí.
       **REABIERTA en la ronda 2, y el motivo es un error de hecho mío.** El run
       `35171916164` (2026-09-17T01:47Z, `workflow_dispatch` sobre esta rama) es **22 jobs en
@@ -129,6 +129,11 @@
       iPhone 18 Pro / iOS 27.0 sobre `fc673df` —**241 tests verdes en 1,173 s**—, que es la
       sustancia que esta tarea persigue; y la suite entera en local, verde, sobre el árbol final.
       Queda pendiente el número del run del HEAD entregado, que es lo que esta tarea pide.
+      **Cerrada después de la ronda 2**: run `35298829414` (`workflow_dispatch` sobre esta rama),
+      comprobado ANTES de mirarlo que corre sobre `381c0a4`, el HEAD que se entrega —el error de
+      antes fue dar por bueno un run de otro commit—. **22 de 22 jobs en verde**, y dentro de
+      `CoreNetworking`, `swift test (macOS)` y `xcodebuild test (iOS Simulator)` los dos en
+      `success`: el simulador, que es donde más caían estos tests y lo que esta tarea pedía.
       Y lo que esta tarea pedía de verdad —el simulador, que es donde más caían— comprobado
       paso a paso y no por el verde del job: dentro de `CoreNetworking`, `swift test (macOS)` y
       `xcodebuild test (iOS Simulator)` los dos en `success`. También verdes `Mínimo soportado`
