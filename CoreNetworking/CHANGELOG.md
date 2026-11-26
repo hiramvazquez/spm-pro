@@ -4,7 +4,7 @@ Todos los cambios notables de este paquete se documentan en este fichero. El for
 [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el versionado,
 [SemVer](https://semver.org/lang/es/).
 
-## [1.3.2] - sin publicar
+## [1.3.2] - 2026-11-26
 
 ### Corregido
 
