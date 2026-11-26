@@ -30,7 +30,13 @@ let service = APIService(configuration: configuration, retryPolicy: policy)
   (`timedOut`, `networkConnectionLost`, `cannotConnectToHost`, `dnsLookupFailed`,
   `cannotFindHost` — **no** `notConnectedToInternet`) y HTTP 5xx / 408 / 429.
 - Backoff exponencial con equal jitter, en `Duration`. Un `Retry-After` del servidor
-  (segundos u HTTP-date) manda sobre el backoff calculado.
+  manda sobre el backoff calculado, con dos condiciones:
+  - Solo cuenta si es lo que permite RFC 9110: segundos escritos solo con dígitos, o una
+    HTTP-date. Cualquier otro valor (`2.5`, `+5`, `1e3`, `inf`) se ignora y se usa el
+    backoff.
+  - Nunca se espera más que `maxDelay`. Si el servidor pide más, no se reintenta: el error
+    vuelve a quien llamó, con ``APIError/retryAfter`` para decir cuándo volver a intentarlo.
+    `RetryDecision.retryAfter(_:)` no tiene ese techo, porque la espera la fija la app.
 - El sleep entre reintentos pasa por un `any Clock<Duration>` inyectado
   (`APIService.init(clock:)`, `ContinuousClock()` por defecto) — nunca `Task.sleep`
   directo. Ver <doc:Testing> para `ManualClock`.
@@ -53,7 +59,8 @@ public protocol RequestRetrier: Sendable {
 intento fallido: el primero que NO devuelva `.doNotRetry` decide; si todos devuelven
 `.doNotRetry` (o la lista está vacía), decide `RetryPolicy`. `RetryPolicy.maxAttempts`
 acota ambos caminos. Una decisión `.retry`/`.retryAfter` hace que el MISMO request vuelva a
-pasar por `willSend` — el caso de uso principal es <doc:Authentication>.
+pasar por `willSend` —salvo un `.retry` con un `Retry-After` del servidor mayor que
+`maxDelay`, que no se reintenta—; el caso de uso principal es <doc:Authentication>.
 
 ## Cancelación durante el backoff
 

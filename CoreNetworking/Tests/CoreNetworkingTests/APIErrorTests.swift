@@ -277,6 +277,47 @@ struct APIErrorTests {
         #expect(APIError.parseRetryAfter(nil) == nil)
     }
 
+    @Test("Retry-After en HTTP-date se redondea hacia arriba: nunca se reintenta antes de lo pedido")
+    func retryAfterHTTPDateRoundsUp() {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "GMT")
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+
+        // `now` fijo, a 9,5 s de una fecha en segundos enteros: sin reloj de pared, y con
+        // una fracción que redondear. Hacia abajo daría 9 s, antes de lo que pidió el servidor.
+        let date = Date(timeIntervalSince1970: 1_800_000_000)
+        let now = date.addingTimeInterval(-9.5)
+        #expect(APIError.parseRetryAfter(formatter.string(from: date), now: now) == .seconds(10))
+    }
+
+    /// RFC 9110: `delay-seconds = 1*DIGIT`. Lo que no es eso ni una HTTP-date se ignora, y
+    /// ningún valor puede terminar el proceso: `inf` y `1e30` lo hacían al convertir el
+    /// `TimeInterval` a `Duration`, y `nan` daba una espera de cero.
+    @Test(
+        "Retry-After en segundos: solo dígitos, y ningún valor tira el proceso",
+        arguments: [
+            ("7", .seconds(7)),
+            (" 7 ", .seconds(7)),
+            ("0", .zero),
+            ("86400", .seconds(86400)),
+            ("inf", nil),
+            ("-inf", nil),
+            ("nan", nil),
+            ("1e30", nil),
+            ("1e3", nil),
+            ("2.5", nil),
+            ("+5", nil),
+            ("-5", nil),
+            ("", nil),
+            ("abc", nil),
+            (String(repeating: "9", count: 30), nil)
+        ] as [(String, Duration?)]
+    )
+    func retryAfterDelaySeconds(value: String, expected: Duration?) {
+        #expect(APIError.parseRetryAfter(value) == expected)
+    }
+
     @Test("sin header Retry-After, retryAfter es nil")
     func noRetryAfterHeaderIsNil() {
         let error = APIError.stub(code: .httpStatus, statusCode: 500)

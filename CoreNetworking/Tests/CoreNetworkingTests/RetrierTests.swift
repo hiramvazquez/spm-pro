@@ -638,4 +638,86 @@ struct RetrierTests {
             "2 requests TOTAL: el 401 original (attempt 1, dispara el refresh) y el reintento (attempt 2, ya no refresca)"
         )
     }
+
+    // MARK: - El techo de Retry-After pasando por un retrier
+    //
+    // `RecordingClock` vive en `RetryBehaviorTests.swift`: aquí tampoco puede colgarse un test
+    // cuyo resultado correcto es no esperar.
+
+    @Test("RetryDecision.retry con un Retry-After por encima de maxDelay: ni se espera ni se reintenta")
+    func retryDecisionWithRetryAfterAboveMaxDelayIsNotWaited() async throws {
+        struct AlwaysRetry: RequestRetrier {
+            func retry(_ error: APIError, context: RequestContext) async -> RetryDecision { .retry }
+        }
+
+        let transport = InMemoryTransport()
+        await transport.register(
+            InMemoryTransport.Exchange(
+                url: resourceURL,
+                response: .response(status: 503, headers: ["Retry-After": "86400"])
+            )
+        )
+        let clock = RecordingClock()
+        // `RetryPolicy()` por defecto: `maxDelay` de 16 s.
+        let service = APIService(
+            configuration: NetworkingConfiguration(baseURL: baseURL),
+            transport: transport,
+            retriers: [AlwaysRetry()],
+            clock: clock
+        )
+
+        var thrown: APIError?
+        do {
+            let _: Payload = try await service.execute(GetRequest())
+        } catch {
+            thrown = error
+        }
+
+        // La premisa, antes de afirmar nada (`suite-determinista`).
+        let requests = await transport.recorded.count
+        try #require(requests > 0, "premisa: el transporte no llegó a responder, así que el reintento no se ejercitó")
+        let error = try #require(thrown, "debía lanzar el 503")
+        #expect(error.statusCode == 503)
+        #expect(error.retryAfter == .seconds(86400))
+        let waits = await clock.log.requested
+        #expect(waits.isEmpty, "se pidió esperar \(waits) en vez de devolver el error")
+        #expect(requests == 1, "se reintentó: \(requests) peticiones")
+    }
+
+    @Test("RetryDecision.retryAfter no tiene el techo de maxDelay: la espera la fija la app, no el servidor")
+    func retryAfterDecisionIsNotCappedByMaxDelay() async throws {
+        struct FixedRetrier: RequestRetrier {
+            func retry(_ error: APIError, context: RequestContext) async -> RetryDecision {
+                .retryAfter(.seconds(3600))
+            }
+        }
+
+        let transport = InMemoryTransport()
+        await transport.register(
+            InMemoryTransport.Exchange(
+                url: resourceURL,
+                responses: [
+                    // Con un `Retry-After` del servidor también por encima del techo: si el
+                    // techo se aplicara antes de mirar la decisión del retrier, este test lo vería.
+                    .response(status: 503, headers: ["Retry-After": "86400"]),
+                    .response(status: 200, body: Data(#"{"ok":true}"#.utf8))
+                ]
+            )
+        )
+        let clock = RecordingClock()
+        let policy = RetryPolicy()
+        try #require(policy.maxDelay == .seconds(16), "premisa: el test supone el maxDelay por defecto, 16 s")
+        let service = APIService(
+            configuration: NetworkingConfiguration(baseURL: baseURL),
+            transport: transport,
+            retryPolicy: policy,
+            retriers: [FixedRetrier()],
+            clock: clock
+        )
+
+        let payload: Payload = try await service.execute(GetRequest())
+
+        #expect(payload.ok == true)
+        #expect(await clock.log.requested == [.seconds(3600)])
+    }
 }

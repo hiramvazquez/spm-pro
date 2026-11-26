@@ -18,6 +18,11 @@ Un `Retry-After` del servidor (segundos, o una HTTP-date como en `RequestSummary
 sobre el backoff calculado por `RetryPolicy` — pero no sobre `RetryDecision.retryAfter` de
 un `RequestRetrier`, que tiene la prioridad más alta de las tres. Ver <doc:Retry>.
 
+Solo se acepta lo que permite RFC 9110: segundos escritos solo con dígitos, o una HTTP-date;
+cualquier otro valor se ignora. Y por un `Retry-After` del servidor nunca se espera más que
+`RetryPolicy.maxDelay`: si pide más, no se reintenta y el error llega a quien llamó con su
+`retryAfter`. La espera de `RetryDecision.retryAfter` no tiene ese techo: la fija la app.
+
 ## ¿Por qué no existe `TransportError`?
 
 `APIError` es un único `struct` extensible con `category` para la clasificación de alto
