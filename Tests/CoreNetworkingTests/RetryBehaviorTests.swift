@@ -146,7 +146,18 @@ struct RetryBehaviorTests {
         let clock = ManualClock()
         // Backoff configurado ENORME: si el delay pedido a `clock` es ~1s en
         // vez de este backoff, es porque se respetó el Retry-After.
-        let apiService = service(transport: transport, clock: clock, maxAttempts: 2, initialDelay: .seconds(3600))
+        //
+        // Con su propia política y no con `service(...)`, cuyo `maxDelay` de 10 ms
+        // dejaba el backoff en 10 ms: también `<= 1s`, así que el test pasaba
+        // aunque se usara el backoff. Y con el techo de `Retry-After`, ese
+        // `maxDelay` dejaría el "1" por encima: no se reintentaría y
+        // `waitUntilSleeping()` se colgaría.
+        let apiService = APIService(
+            configuration: NetworkingConfiguration(baseURL: baseURL),
+            transport: transport,
+            retryPolicy: RetryPolicy(maxAttempts: 2, initialDelay: .seconds(3600), maxDelay: .seconds(7200)),
+            clock: clock
+        )
 
         let task = Task {
             try await apiService.execute(GetRequest())
@@ -305,5 +316,99 @@ struct RetryBehaviorTests {
 
         #expect(payload.ok == true)
         #expect(await transport.recorded.count == 3)
+    }
+
+    // MARK: - El techo: un Retry-After por encima de maxDelay no se espera
+
+    @Test("Retry-After por encima de maxDelay: ni se espera ni se reintenta, y el error lleva lo que pidió el servidor")
+    func retryAfterAboveMaxDelayIsNotWaited() async throws {
+        let transport = InMemoryTransport()
+        await transport.register(
+            InMemoryTransport.Exchange(
+                url: resourceURL,
+                response: .response(status: 503, headers: ["Retry-After": "86400"])
+            )
+        )
+        let clock = RecordingClock()
+        // `RetryPolicy()` por defecto: `maxDelay` de 16 s, muy por debajo de las 24 h pedidas.
+        let apiService = APIService(
+            configuration: NetworkingConfiguration(baseURL: baseURL),
+            transport: transport,
+            clock: clock
+        )
+
+        var thrown: APIError?
+        do {
+            _ = try await apiService.execute(GetRequest())
+        } catch {
+            thrown = error
+        }
+
+        // La premisa, antes de afirmar nada (`suite-determinista`).
+        let requests = await transport.recorded.count
+        try #require(requests > 0, "premisa: el transporte no llegó a responder, así que el reintento no se ejercitó")
+        let error = try #require(thrown, "debía lanzar el 503")
+        #expect(error.statusCode == 503)
+        #expect(error.retryAfter == .seconds(86400))
+        let waits = await clock.log.requested
+        #expect(waits.isEmpty, "se pidió esperar \(waits) en vez de devolver el error")
+        #expect(requests == 1, "se reintentó: \(requests) peticiones")
+    }
+
+    @Test("Retry-After igual a maxDelay: se espera exactamente eso y se reintenta")
+    func retryAfterAtMaxDelayIsWaited() async throws {
+        let transport = InMemoryTransport()
+        await transport.register(
+            InMemoryTransport.Exchange(
+                url: resourceURL,
+                responses: [
+                    .response(status: 503, headers: ["Retry-After": "16"]),
+                    .response(status: 200, body: Data(#"{"ok":true}"#.utf8))
+                ]
+            )
+        )
+        let clock = RecordingClock()
+        let policy = RetryPolicy()
+        try #require(policy.maxDelay == .seconds(16), "premisa: el test supone el maxDelay por defecto, 16 s")
+        let apiService = APIService(
+            configuration: NetworkingConfiguration(baseURL: baseURL),
+            transport: transport,
+            retryPolicy: policy,
+            clock: clock
+        )
+
+        let payload = try await apiService.execute(GetRequest())
+
+        #expect(payload.ok == true)
+        #expect(await clock.log.requested == [.seconds(16)])
+        #expect(await transport.recorded.count == 2)
+    }
+}
+
+// MARK: - RecordingClock
+
+/// Reloj en el que esperar no lleva tiempo: anota cada espera que se le pide y vuelve en el
+/// acto, sin suspender.
+///
+/// Para los tests del techo de `Retry-After`, aquí y en `RetrierTests`. Con `ManualClock`, una
+/// espera que no debía pedirse colgaría el test en vez de fallarlo: nadie avanza el reloj,
+/// `waitUntilSleeping()` no admite cancelación y `.timeLimit` no interrumpe ese `await` (ver
+/// `CancellationTests`). Con este, `execute` termina siempre y el test lee qué esperas se
+/// pidieron. No mide tiempo de ningún tipo: `now` está congelado.
+struct RecordingClock: Clock {
+    actor Log {
+        private(set) var requested: [Swift.Duration] = []
+
+        func record(_ wait: Swift.Duration) { requested.append(wait) }
+    }
+
+    let log = Log()
+    private let frozen = ManualClock()
+
+    var now: ManualClock.Instant { frozen.now }
+    var minimumResolution: Swift.Duration { .zero }
+
+    func sleep(until deadline: ManualClock.Instant, tolerance: Swift.Duration?) async throws {
+        await log.record(frozen.now.duration(to: deadline))
     }
 }

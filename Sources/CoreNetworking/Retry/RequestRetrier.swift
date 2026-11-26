@@ -10,7 +10,9 @@ public enum RetryDecision: Sendable, Equatable {
     /// fall back to `RetryPolicy` if none is left.
     case doNotRetry
     /// Retry using the usual delay: the server's `Retry-After` if present,
-    /// otherwise `RetryPolicy`'s jittered backoff.
+    /// otherwise `RetryPolicy`'s jittered backoff. A server `Retry-After`
+    /// longer than `RetryPolicy.maxDelay` is not waited for: the request is
+    /// NOT retried, and the error goes back to the caller.
     case retry
     /// Retry after EXACTLY `Duration` — ignores `RetryPolicy` and any
     /// server `Retry-After`.
@@ -28,10 +30,11 @@ public enum RetryDecision: Sendable, Equatable {
 /// by `RetryPolicy.maxAttempts` — TOTAL requests, retriers included.
 ///
 /// A `.retry`/`.retryAfter` decision sends the exact SAME `BaseRequest`
-/// through the pipeline again, starting from `willSend`: an interceptor that
-/// reads a token fresh on every call (`BearerTokenInterceptor`) picks up
-/// whatever changed since the attempt that failed — e.g. the token
-/// `TokenRefreshRetrier` just refreshed.
+/// through the pipeline again —except a `.retry` whose server `Retry-After`
+/// exceeds `RetryPolicy.maxDelay`, which is not retried—, starting from
+/// `willSend`: an interceptor that reads a token fresh on every call
+/// (`BearerTokenInterceptor`) picks up whatever changed since the attempt
+/// that failed — e.g. the token `TokenRefreshRetrier` just refreshed.
 ///
 /// ## Example — retry once per new attempt, never on the first
 /// ```swift

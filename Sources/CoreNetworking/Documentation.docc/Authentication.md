@@ -50,7 +50,9 @@ cada `willSend` — incluido el que dispara `TokenRefreshRetrier` tras un refres
 `TokenRefreshRetrier.retry` solo actúa en el PRIMER intento (`context.attempt == 1`) de un
 401: refresca y responde `.retry` si funciona, `.doNotRetry` si el refresh falla (el 401
 original llega al consumidor sin requests extra) — nunca reintenta un 401 en un intento
-posterior, para no entrar en bucle si el token nuevo tampoco vale.
+posterior, para no entrar en bucle si el token nuevo tampoco vale. Si ese 401 trae un
+`Retry-After` mayor que `RetryPolicy.maxDelay`, el refresh ocurre igual, pero el `.retry` no
+se reintenta: el 401 llega al consumidor con el token ya renovado (<doc:Retry>).
 
 `TokenRefresher` es un `actor` porque N requests que reciben 401 a la vez deben disparar
 EXACTAMENTE un refresh: si ya hay uno en vuelo, los demás esperan su resultado — crítico

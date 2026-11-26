@@ -4,6 +4,29 @@ Todos los cambios notables de este paquete se documentan en este fichero. El for
 [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el versionado,
 [SemVer](https://semver.org/lang/es/).
 
+## [1.3.2] - sin publicar
+
+### Corregido
+
+- **Un `Retry-After` ya no puede terminar el proceso ni dejar una petición esperando sin
+  límite.** La cabecera se pasaba a `Double` y de ahí a `Duration` sin validar: con `inf` o
+  `1e30` el proceso moría (`Fatal error`), y con `86400` el reintento esperaba 24 h. No
+  cambia ninguna firma pública. Cambia el comportamiento en tres casos:
+  1. Los valores que terminaban el proceso ahora se ignoran, y se usa el backoff.
+  2. Los valores que RFC 9110 no permite y antes se aceptaban (`2.5`, `+5`, `-5`, `nan`)
+     también se ignoran. Antes significaban esperar 2,5 s, 5 s, 0 s y 0 s. Solo cuentan los
+     segundos escritos solo con dígitos o una HTTP-date, y esta se redondea hacia arriba a
+     segundos enteros.
+  3. **Un `Retry-After` mayor que `RetryPolicy.maxDelay` (16 s por defecto) ya no se espera:
+     no se reintenta, y el error vuelve a quien llamó con su `retryAfter`.** Antes se esperaba
+     entero. Vale para el camino de `RetryPolicy` y para un `RetryDecision.retry` de un
+     retrier, incluido el de `TokenRefreshRetrier`: si el 401 trae un `Retry-After` así, el
+     token se renueva pero la petición no se reintenta. `RetryDecision.retryAfter(_:)` no
+     tiene techo.
+
+  Si tu app espera a propósito más de 16 s por un `Retry-After`, sube `maxDelay` en su
+  `RetryPolicy`.
+
 ## [1.3.1] - 2026-09-16
 
 ### Corregido

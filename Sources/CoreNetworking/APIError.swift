@@ -176,7 +176,10 @@ public struct APIError: Error, Sendable {
     /// HTTP status code, when the server answered.
     public var statusCode: Int? { response?.statusCode }
 
-    /// Server-requested wait (`Retry-After`: delay-seconds or HTTP-date, RFC 9110).
+    /// Server-requested wait, from the `Retry-After` header (RFC 9110): delay-seconds —digits
+    /// only— or an HTTP-date, rounded up to whole seconds (zero if it is already past). Any
+    /// other value (`2.5`, `+5`, `1e3`, `inf`, a number too large to represent) is ignored,
+    /// as if the header were absent.
     public var retryAfter: Duration? {
         Self.parseRetryAfter(response?.header("Retry-After"))
     }
@@ -308,12 +311,22 @@ public struct APIError: Error, Sendable {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespaces)
 
-        if let seconds = TimeInterval(trimmed) {
-            return .seconds(max(0, seconds))
+        // `delay-seconds = 1*DIGIT`: solo dígitos, comprobado ANTES de `Int(_:)`, que acepta
+        // también `+5` y `-5`. Y `.seconds(Int)`, que no atrapa con ningún `Int`: la versión
+        // con `Double` sí, con `inf` o `1e30`, y terminaba el proceso.
+        if !trimmed.isEmpty, trimmed.utf8.allSatisfy({ $0 >= UInt8(ascii: "0") && $0 <= UInt8(ascii: "9") }) {
+            guard let seconds = Int(trimmed) else { return nil }
+            return .seconds(seconds)
         }
 
         guard let date = parseHTTPDate(trimmed) else { return nil }
-        return .seconds(max(0, date.timeIntervalSince(now)))
+        let interval = date.timeIntervalSince(now)
+        guard interval.isFinite else { return nil }
+        guard interval > 0 else { return .zero }
+        // Hacia arriba: nunca se reintenta antes de lo que pidió el servidor.
+        let seconds = interval.rounded(.up)
+        guard seconds < Double(Int.max) else { return nil }
+        return .seconds(Int(seconds))
     }
 
     private static func parseHTTPDate(_ value: String) -> Date? {

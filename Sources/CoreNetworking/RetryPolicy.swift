@@ -30,7 +30,9 @@ public struct RetryPolicy: Sendable {
     /// Base delay before the first retry.
     public let initialDelay: Duration
 
-    /// Cap for the computed delay.
+    /// The longest this policy waits between two attempts. It caps the computed backoff,
+    /// and it is also the most a server `Retry-After` is waited for: a longer one is not
+    /// retried, and the error —with its `retryAfter`— goes back to the caller.
     public let maxDelay: Duration
 
     /// Multiplier for exponential backoff.
@@ -50,7 +52,8 @@ public struct RetryPolicy: Sendable {
     ///   - maxAttempts: Total requests allowed (default: 3). Values < 1 are
     ///     clamped to 1 — "cero requests" no es un estado representable.
     ///   - initialDelay: Base delay (default: 500 ms)
-    ///   - maxDelay: Delay cap (default: 16 s)
+    ///   - maxDelay: Longest wait between attempts, for the backoff and for a server
+    ///     `Retry-After` alike (default: 16 s)
     ///   - multiplier: Backoff multiplier (default: 2.0)
     ///   - shouldRetry: Custom retry predicate (default: `APIError.isRetryable`)
     public init(

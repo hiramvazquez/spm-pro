@@ -303,6 +303,11 @@ public final class APIService: APIServiceProtocol {
     /// - `RetryDecision.retryAfter` overrides both a server `Retry-After`
     ///   and the jittered backoff; `.retry` (from a retrier OR the default
     ///   `retryPolicy` path) still prefers `Retry-After` over the backoff.
+    /// - A server `Retry-After` longer than `retryPolicy.maxDelay` is never
+    ///   waited for: the request is not retried, and the error —which
+    ///   carries `retryAfter`— goes back to the caller. That applies to the
+    ///   `retryPolicy` path and to a retrier's `.retry`, not to
+    ///   `.retryAfter(_:)`, whose wait the app sets itself.
     private func performWithRetry<Request: BaseRequest>(
         _ request: Request,
         transport: (URLRequest) async throws -> (Data, HTTPURLResponse)
@@ -323,6 +328,8 @@ public final class APIService: APIServiceProtocol {
                     case .retryAfter(let explicit):
                         delay = explicit
                     case .retry:
+                        // El techo: por encima de `maxDelay`, ni se espera ni se reintenta.
+                        if let serverDelay = error.retryAfter, serverDelay > retryPolicy.maxDelay { throw error }
                         delay = error.retryAfter ?? retryPolicy.jitteredDelay(for: attemptsMade - 1)
                     case .doNotRetry:
                         // `firstRetrierDecision` never returns `.doNotRetry`.
@@ -330,6 +337,7 @@ public final class APIService: APIServiceProtocol {
                     }
                 } else {
                     guard methodAllowsRetry, retryPolicy.shouldRetry(error, attemptsMade) else { throw error }
+                    if let serverDelay = error.retryAfter, serverDelay > retryPolicy.maxDelay { throw error }
                     delay = error.retryAfter ?? retryPolicy.jitteredDelay(for: attemptsMade - 1)
                 }
 
